@@ -131,6 +131,62 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ----------------------------------------------------
+  // Document File Manager & Chunk Purging
+  // ----------------------------------------------------
+  async function loadDocuments() {
+    if (!documentsList) return;
+    try {
+      const res = await fetch("/api/documents");
+      const docs = await res.json();
+      renderDocumentsList(docs);
+    } catch (err) {
+      console.error("Failed to load documents list:", err);
+    }
+  }
+
+  function renderDocumentsList(docs) {
+    if (!documentsList) return;
+    documentsList.innerHTML = "";
+    if (!docs || docs.length === 0) {
+      documentsList.innerHTML = `<div style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding:0.5rem;">No documents uploaded</div>`;
+      return;
+    }
+
+    docs.forEach(d => {
+      const item = document.createElement("div");
+      item.className = "doc-item";
+      const sizeMb = (d.size_bytes / (1024 * 1024)).toFixed(2);
+      item.innerHTML = `
+        <div style="overflow:hidden;">
+          <div class="doc-item-title" title="${escapeHtml(d.filename)}">📄 ${escapeHtml(d.filename)}</div>
+          <div class="doc-item-meta">${d.chunk_count} chunks • ${sizeMb} MB</div>
+        </div>
+        <button class="doc-item-del" data-filename="${escapeHtml(d.filename)}" title="Delete document & chunks">🗑️</button>
+      `;
+      documentsList.appendChild(item);
+    });
+
+    documentsList.querySelectorAll(".doc-item-del").forEach(btn => {
+      btn.addEventListener("click", () => {
+        deleteDocument(btn.getAttribute("data-filename"));
+      });
+    });
+  }
+
+  async function deleteDocument(filename) {
+    if (!confirm(`Are you sure you want to delete document '${filename}' and purge all its vector chunks?`)) return;
+    try {
+      const res = await fetch(`/api/documents/${encodeURIComponent(filename)}`, { method: "DELETE" });
+      const data = await res.json();
+      showToast(data.message, "info");
+      loadDocuments();
+      loadStats();
+    } catch (err) {
+      showToast("Failed to delete document: " + err.message, "error");
+    }
+  }
+
+  // ----------------------------------------------------
   // Chat Session Management
   // ----------------------------------------------------
   async function loadChats() {
