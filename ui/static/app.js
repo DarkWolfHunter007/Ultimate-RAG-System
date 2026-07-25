@@ -75,11 +75,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (tabSettings) tabSettings.classList.add("active");
       if (viewWorkspace) viewWorkspace.classList.remove("active");
       if (viewSettings) viewSettings.classList.add("active");
+      if (tierBadge) tierBadge.style.display = "none";
     } else {
       if (tabSettings) tabSettings.classList.remove("active");
       if (tabWorkspace) tabWorkspace.classList.add("active");
       if (viewSettings) viewSettings.classList.remove("active");
       if (viewWorkspace) viewWorkspace.classList.add("active");
+      if (tierBadge) tierBadge.style.display = "inline-flex";
     }
   }
 
