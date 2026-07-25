@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ultimate RAG System - Conversational AI & Settings</title>
+  <link rel="stylesheet" href="/static/style.css?v=6.0">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Markdown Parser for Pretty Formatting -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <span>🚀</span> Ultimate-RAG-System
+    </div>
+    
+    <!-- Top Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button id="tabWorkspace" class="nav-tab active">💬 RAG Chat Workspace</button>
+      <button id="tabSettings" class="nav-tab">⚙️ Settings & Models</button>
+    </nav>
+
+    <div class="status-bar">
+      <div id="tierBadge" class="badge nano">Corpus: Nano (0 Chunks)</div>
+      <div id="activeModelBadge" class="badge model-badge">Model: Loading...</div>
+    </div>
+  </header>
+
+  <div class="main-content">
+    
+    <!-- ==================== VIEW 1: RAG CHAT WORKSPACE ==================== -->
+    <section id="viewWorkspace" class="view-section active">
+      <div class="chat-workspace-layout">
+        
+        <!-- Left Sidebar: Chat Sessions & Ingestion -->
+        <aside class="chat-sidebar">
+          
+          <button id="btnNewChat" class="btn-primary btn-block">➕ New Chat Session</button>
+
+          <!-- Ingestion Drop Zone -->
+          <div class="sidebar-card upload-card" id="dropZone">
+            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md" style="display:none;" />
+            <div class="upload-icon-sm">📄 Drag & Drop Files</div>
+            <p class="upload-sub">PDF, Markdown, TXT</p>
+            <div id="uploadStatus" class="status-msg"></div>
+          </div>
+
+          <div class="sidebar-title">💬 Conversation Sessions</div>
+          
+          <div id="chatsList" class="chats-list">
+            <!-- Dynamically populated -->
+          </div>
+
+        </aside>
+
+        <!-- Right Main Chat Area -->
+        <main class="chat-main-area">
+          
+          <!-- Active Config Summary Banner -->
+          <div class="config-banner">
+            <div class="banner-item">
+              <span class="label">Provider:</span>
+              <span id="summaryProvider" class="val">OpenRouter</span>
+            </div>
+            <div class="banner-item">
+              <span class="label">Active LLM:</span>
+              <span id="summaryLLM" class="val">Gemini 2.0 Flash</span>
+            </div>
+            <div class="banner-item">
+              <span class="label">Embedding:</span>
+              <span id="summaryEmbedding" class="val">Nemotron Embed</span>
+            </div>
+            <div class="banner-item">
+              <span class="label">Retrieval Mode:</span>
+              <span id="summaryMode" class="val">Hybrid (α=0.5)</span>
+            </div>
+            <button id="btnJumpSettings" class="btn-secondary btn-sm">⚙️ Configure Models</button>
+          </div>
+
+          <!-- Chat Messages Thread -->
+          <div id="chatThread" class="chat-thread">
+            <div class="chat-welcome">
+              <div class="welcome-icon">💬</div>
+              <h2>Interactive RAG Document Chat</h2>
+              <p>Upload your documents and start chatting continuously. Context & history are preserved across messages!</p>
+            </div>
+          </div>
+
+          <!-- Bottom Sticky Chat Input Bar -->
+          <div class="chat-input-bar">
+            <textarea id="queryInput" class="chat-textarea" rows="1" placeholder="Ask anything about your ingested documents... (Press Enter to send, Shift+Enter for new line)"></textarea>
+            <button id="btnSearch" class="btn-primary btn-send">⚡ Send</button>
+          </div>
+
+        </main>
+
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 2: DEDICATED SETTINGS PAGE ==================== -->
+    <section id="viewSettings" class="view-section">
+      <div class="settings-container">
+        
+        <div class="settings-header">
+          <h2>⚙️ System Settings & Model Management</h2>
+          <p>Configure API providers, add custom models, test model latency & ping connectivity, and adjust retrieval algorithms.</p>
+        </div>
+
+        <div class="settings-grid">
+          
+          <!-- Card 1: Provider & Credentials -->
+          <div class="card settings-card">
+            <div class="card-header">
+              <h3>🔑 API Provider & Credentials</h3>
+            </div>
+            
+            <div class="form-group">
+              <label for="providerSelect">Default API Provider</label>
+              <select id="providerSelect" class="form-control">
+                <option value="openrouter">OpenRouter API</option>
+                <option value="ollama">Local Ollama</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="apiKeyGroup">
+              <label for="apiKeyInput">OpenRouter API Key</label>
+              <div class="input-with-btn">
+                <input type="password" id="apiKeyInput" class="form-control" placeholder="sk-or-v1-..." />
+                <button id="btnToggleKeyVis" class="btn-icon" title="Toggle visibility">👁️</button>
+              </div>
+              <small class="form-hint">Used for cloud models (Gemini, Llama 3.3, Claude, DeepSeek).</small>
+            </div>
+
+            <div class="form-group" id="ollamaUrlGroup" style="display: none;">
+              <label for="ollamaUrlInput">Ollama Base URL</label>
+              <input type="text" id="ollamaUrlInput" class="form-control" value="http://localhost:11434" />
+              <small class="form-hint">Address of your locally running Ollama instance.</small>
+            </div>
+
+            <button id="btnSaveCredentials" class="btn-primary" style="margin-top: 0.5rem;">💾 Save Provider & Credentials</button>
+          </div>
+
+          <!-- Card 2: Model Management & Adding Form -->
+          <div class="card settings-card col-span-2">
+            <div class="card-header">
+              <h3>🤖 Model Registry & Model Management</h3>
+              <p class="subtitle">Add new LLM/Embedding models, set active targets, and ping endpoint connectivity.</p>
+            </div>
+
+            <!-- Active Selection Row -->
+            <div class="active-models-bar">
+              <div class="form-group flex-1">
+                <label for="activeLlmSelect">Active LLM Model</label>
+                <select id="activeLlmSelect" class="form-control"></select>
+              </div>
+              <div class="form-group flex-1">
+                <label for="activeEmbeddingSelect">Active Embedding Model</label>
+                <select id="activeEmbeddingSelect" class="form-control"></select>
+              </div>
+            </div>
+
+            <!-- Add Custom Model Form -->
+            <div class="add-model-box">
+              <h4 style="color: var(--accent-cyan); margin-bottom: 0.75rem;">➕ Add Custom Model</h4>
+              <div class="add-model-grid">
+                <div class="form-group">
+                  <label for="newModelId">Model ID / Name</label>
+                  <input type="text" id="newModelId" class="form-control" placeholder="e.g. anthropic/claude-3.5-sonnet" />
+                </div>
+                <div class="form-group">
+                  <label for="newModelName">Display Label</label>
+                  <input type="text" id="newModelName" class="form-control" placeholder="e.g. Claude 3.5 Sonnet" />
+                </div>
+                <div class="form-group">
+                  <label for="newModelProvider">Provider</label>
+                  <select id="newModelProvider" class="form-control">
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="ollama">Ollama</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="newModelType">Model Type</label>
+                  <select id="newModelType" class="form-control">
+                    <option value="llm">LLM (Chat/Reasoning)</option>
+                    <option value="embedding">Embedding</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display: flex; gap: 0.75rem; margin-top: 0.75rem;">
+                <button id="btnAddModel" class="btn-primary">➕ Register Model</button>
+                <button id="btnPingNewModel" class="btn-secondary">📡 Ping Test Model</button>
+              </div>
+              <div id="newModelPingStatus" class="ping-result-box" style="display:none;"></div>
+            </div>
+
+            <!-- Models List Table -->
+            <div style="margin-top: 1.25rem;">
+              <h4 style="margin-bottom: 0.75rem;">Registered Models & Ping Diagnostics</h4>
+              <div class="models-table-container">
+                <table class="models-table">
+                  <thead>
+                    <tr>
+                      <th>Display Name & Model ID</th>
+                      <th>Provider</th>
+                      <th>Type</th>
+                      <th>Status & Ping</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="modelsTableBody">
+                    <!-- Populated dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Card 3: Retrieval Parameters -->
+          <div class="card settings-card">
+            <div class="card-header">
+              <h3>🎛️ Retrieval & Pacing Tuning</h3>
+            </div>
+
+            <div class="slider-group">
+              <label for="hybridAlpha">Hybrid Weight α (Dense vs BM25): <span id="alphaVal" class="slider-val">0.5</span></label>
+              <input type="range" id="hybridAlpha" min="0" max="1" step="0.05" value="0.5">
+              <div class="slider-legend"><span>0.0 (BM25 Only)</span><span>1.0 (Dense Only)</span></div>
+            </div>
+
+            <div class="slider-group">
+              <label for="mmrLambda">MMR Diversity λ (Relevance vs Diversity): <span id="lambdaVal" class="slider-val">0.5</span></label>
+              <input type="range" id="mmrLambda" min="0" max="1" step="0.05" value="0.5">
+              <div class="slider-legend"><span>0.0 (Max Diversity)</span><span>1.0 (Max Relevance)</span></div>
+            </div>
+
+            <div class="slider-group">
+              <label for="topKPool">Top-K Candidate Pool: <span id="topkVal" class="slider-val">20</span></label>
+              <input type="range" id="topKPool" min="5" max="100" step="5" value="20">
+            </div>
+
+            <div class="slider-group">
+              <label for="topNContext">Top-N LLM Final Context: <span id="topnVal" class="slider-val">5</span></label>
+              <input type="range" id="topNContext" min="1" max="15" step="1" value="5">
+            </div>
+          </div>
+
+          <!-- Card 4: Toggles & Data Controls -->
+          <div class="card settings-card">
+            <div class="card-header">
+              <h3>⚡ RAG Pipeline Toggles & Maintenance</h3>
+            </div>
+
+            <div class="toggle-list">
+              <div class="toggle-row">
+                <div>
+                  <strong>Cross-Encoder Reranker</strong>
+                  <div class="toggle-desc">Reranks retrieved candidate chunks using deep semantic cross-encoders.</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="toggleReranker"><span class="slider"></span></label>
+              </div>
+
+              <div class="toggle-row">
+                <div>
+                  <strong>HyDE Generation</strong>
+                  <div class="toggle-desc">Generates hypothetical document embeddings prior to vector retrieval.</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="toggleHyde"><span class="slider"></span></label>
+              </div>
+
+              <div class="toggle-row">
+                <div>
+                  <strong>Strict Evidence Enforcement</strong>
+                  <div class="toggle-desc">Refuses to answer if retrieved chunks do not contain sufficient evidence.</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="toggleStrict" checked><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--bg-card-border);">
+              <h4 style="color: #ff5555; margin-bottom: 0.5rem;">⚠️ Danger Zone</h4>
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <button id="btnClearIndex" class="btn-danger">🗑️ Clear Vector & BM25 Corpus Index</button>
+                <button id="btnResetConfig" class="btn-secondary" style="color: #ffaa00; border-color: rgba(255, 170, 0, 0.4);">🔑 Clear Credentials & Reset Config JSON</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="/static/app.js?v=6.0"></script>
+</body>
+</html>
