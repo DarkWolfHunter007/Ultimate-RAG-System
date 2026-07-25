@@ -810,9 +810,11 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(data.message, "success");
       loadStats();
       loadDocuments();
+      setTimeout(() => { if (uploadStatus) uploadStatus.innerText = ""; }, 4000);
     } catch (err) {
       uploadStatus.innerText = `❌ Upload failed: ${err.message}`;
       showToast("Upload failed: " + err.message, "error");
+      setTimeout(() => { if (uploadStatus) uploadStatus.innerText = ""; }, 4000);
     }
   }
 
@@ -824,6 +826,7 @@ document.addEventListener("DOMContentLoaded", () => {
         showToast("Corpus index cleared successfully.", "info");
         loadStats();
         loadDocuments();
+        setTimeout(() => { if (uploadStatus) uploadStatus.innerText = ""; }, 4000);
       }
     });
   }
