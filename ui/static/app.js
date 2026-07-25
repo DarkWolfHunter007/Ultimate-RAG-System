@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Chat Workspace Elements
   const btnNewChat = document.getElementById("btnNewChat");
   const chatsList = document.getElementById("chatsList");
+  const documentsList = document.getElementById("documentsList");
   const chatThread = document.getElementById("chatThread");
   const queryInput = document.getElementById("queryInput");
   const btnSearch = document.getElementById("btnSearch");
@@ -750,6 +751,7 @@ document.addEventListener("DOMContentLoaded", () => {
       uploadStatus.innerText = `✅ ${data.message}`;
       showToast(data.message, "success");
       loadStats();
+      loadDocuments();
     } catch (err) {
       uploadStatus.innerText = `❌ Upload failed: ${err.message}`;
       showToast("Upload failed: " + err.message, "error");
@@ -763,6 +765,7 @@ document.addEventListener("DOMContentLoaded", () => {
         uploadStatus.innerText = "Corpus index cleared.";
         showToast("Corpus index cleared successfully.", "info");
         loadStats();
+        loadDocuments();
       }
     });
   }

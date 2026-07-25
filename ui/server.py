@@ -271,11 +271,70 @@ async def get_stats():
         "corpus_tier": tier
     }
 
+# Persistent documents directory
+DOCUMENTS_DIR = "./data/documents"
+os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+
+@app.get("/api/documents")
+async def list_documents():
+    if not os.path.exists(DOCUMENTS_DIR):
+        return []
+    
+    all_chunks = vector_indexer.get_all_chunks()
+    chunk_counts = {}
+    for c in all_chunks:
+        src = c.get("metadata", {}).get("source", "")
+        if src:
+            chunk_counts[src] = chunk_counts.get(src, 0) + 1
+
+    docs = []
+    for fname in os.listdir(DOCUMENTS_DIR):
+        fpath = os.path.join(DOCUMENTS_DIR, fname)
+        if os.path.isfile(fpath):
+            stat = os.stat(fpath)
+            docs.append({
+                "filename": fname,
+                "size_bytes": stat.st_size,
+                "chunk_count": chunk_counts.get(fname, 0),
+                "modified_at": stat.st_mtime
+            })
+    docs.sort(key=lambda x: x["modified_at"], reverse=True)
+    return docs
+
+@app.delete("/api/documents/{filename}")
+async def delete_document(filename: str):
+    fpath = os.path.join(DOCUMENTS_DIR, filename)
+    if os.path.exists(fpath):
+        try:
+            os.remove(fpath)
+        except Exception as e:
+            logger.warning(f"Could not remove document file '{filename}': {e}")
+    
+    # Delete chunks from ChromaDB & reindex BM25
+    vector_indexer.delete_by_source(filename)
+    all_remaining = vector_indexer.get_all_chunks()
+    bm25_engine.index_chunks(all_remaining)
+    
+    tier, total = adaptive_engine.get_corpus_tier()
+    return {
+        "message": f"Successfully deleted '{filename}' and purged its vector chunks.",
+        "total_chunks": total,
+        "corpus_tier": tier
+    }
+
 @app.post("/api/clear")
 async def clear_index():
     vector_indexer.clear()
     bm25_engine.index_chunks([])
-    return {"message": "Corpus index successfully cleared."}
+    if os.path.exists(DOCUMENTS_DIR):
+        for fname in os.listdir(DOCUMENTS_DIR):
+            fpath = os.path.join(DOCUMENTS_DIR, fname)
+            if os.path.isfile(fpath):
+                try:
+                    os.remove(fpath)
+                except Exception:
+                    pass
+    return {"message": "Corpus index and uploaded files successfully cleared."}
 
 @app.post("/api/upload")
 async def upload_documents(files: List[UploadFile] = File(...)):
@@ -283,7 +342,7 @@ async def upload_documents(files: List[UploadFile] = File(...)):
     chunker = SemanticChunker(chunk_size=350, chunk_overlap=40)
 
     for file in files:
-        file_path = os.path.join(UPLOAD_DIR, file.filename)
+        file_path = os.path.join(DOCUMENTS_DIR, file.filename)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
@@ -309,7 +368,7 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
     tier, total = adaptive_engine.get_corpus_tier()
     return {
-        "message": f"Successfully indexed {len(all_chunks)} new chunks across {len(files)} files.",
+        "message": f"Successfully copied & indexed {len(all_chunks)} chunks across {len(files)} files.",
         "total_chunks": total,
         "corpus_tier": tier
     }
