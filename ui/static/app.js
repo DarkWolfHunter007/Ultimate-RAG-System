@@ -70,18 +70,24 @@ document.addEventListener("DOMContentLoaded", () => {
   // In-Memory Tab Switching
   // ----------------------------------------------------
   function switchTab(target) {
+    const wTab = document.getElementById("tabWorkspace");
+    const sTab = document.getElementById("tabSettings");
+    const wView = document.getElementById("viewWorkspace");
+    const sView = document.getElementById("viewSettings");
+    const tBadge = document.getElementById("tierBadge");
+
     if (target === "settings") {
-      if (tabWorkspace) tabWorkspace.classList.remove("active");
-      if (tabSettings) tabSettings.classList.add("active");
-      if (viewWorkspace) viewWorkspace.classList.remove("active");
-      if (viewSettings) viewSettings.classList.add("active");
-      if (tierBadge) tierBadge.style.display = "none";
+      if (wTab) wTab.classList.remove("active");
+      if (sTab) sTab.classList.add("active");
+      if (wView) wView.classList.remove("active");
+      if (sView) sView.classList.add("active");
+      if (tBadge) tBadge.style.display = "none";
     } else {
-      if (tabSettings) tabSettings.classList.remove("active");
-      if (tabWorkspace) tabWorkspace.classList.add("active");
-      if (viewSettings) viewSettings.classList.remove("active");
-      if (viewWorkspace) viewWorkspace.classList.add("active");
-      if (tierBadge) tierBadge.style.display = "inline-flex";
+      if (sTab) sTab.classList.remove("active");
+      if (wTab) wTab.classList.add("active");
+      if (sView) sView.classList.remove("active");
+      if (wView) wView.classList.add("active");
+      if (tBadge) tBadge.style.display = "inline-flex";
     }
   }
 
@@ -476,6 +482,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ----------------------------------------------------
   function renderConfigUI(cfg) {
     if (!cfg) return;
+    currentConfig = cfg;
     providerSelect.value = cfg.provider;
     apiKeyInput.value = cfg.openrouter_api_key || "";
     ollamaUrlInput.value = cfg.ollama_base_url || "http://localhost:11434";
@@ -627,8 +634,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     models.forEach(m => {
       const tr = document.createElement("tr");
-      const isLLMActive = m.id === currentConfig.llm_model;
-      const isEmbedActive = m.id === currentConfig.embedding_model;
+      const isLLMActive = currentConfig && m.id === currentConfig.llm_model;
+      const isEmbedActive = currentConfig && m.id === currentConfig.embedding_model;
       const pingRes = modelPingResults[m.id];
 
       let pingBadgeHTML = `<span class="ping-badge" id="pingBadge_${cssEscape(m.id)}">📡 Untested</span>`;
