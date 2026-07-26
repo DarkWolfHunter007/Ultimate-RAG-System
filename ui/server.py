@@ -1,13 +1,16 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 import shutil
+import time
+import httpx
 from typing import List, Dict, Any, Optional
 
-from core.config_manager import ConfigManager
+from core.config_manager import ConfigManager, CustomModel
+from core.chat_manager import ChatManager
 from core.adaptive_engine import AdaptiveEngine
 from ingestion.multi_parser import MultiParser
 from ingestion.semantic_chunker import SemanticChunker
@@ -24,22 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from core.config_manager import ConfigManager, CustomModel
-from core.chat_manager import ChatManager
-
 # Initialize Core Services
 vector_indexer = VectorIndexer()
 bm25_engine = BM25Engine()
 adaptive_engine = AdaptiveEngine(vector_indexer, bm25_engine)
 config_mgr = ConfigManager.get_instance()
 chat_mgr = ChatManager.get_instance()
-
-# Temp upload directory
-UPLOAD_DIR = "./data/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-import time
-import httpx
 
 class QueryRequest(BaseModel):
     query: str

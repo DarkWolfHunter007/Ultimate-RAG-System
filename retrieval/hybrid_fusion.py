@@ -72,11 +72,14 @@ class HybridFusion:
         if not candidates or len(candidates) <= top_n:
             return candidates[:top_n]
 
+        # Precompute token sets for all candidates to avoid re-splitting strings
+        for c in candidates:
+            c["_words"] = set(c["content"].lower().split())
+
         selected = [candidates[0]]
         unselected = candidates[1:]
 
-        def Jaccard_sim(str1: str, str2: str) -> float:
-            set1, set2 = set(str1.lower().split()), set(str2.lower().split())
+        def jaccard_sim(set1: set, set2: set) -> float:
             if not set1 or not set2:
                 return 0.0
             return len(set1 & set2) / len(set1 | set2)
@@ -87,13 +90,16 @@ class HybridFusion:
 
             for i, cand in enumerate(unselected):
                 relevance = cand["score"]
-                # Max similarity to already selected chunks
-                max_redundancy = max(Jaccard_sim(cand["content"], sel["content"]) for sel in selected)
+                max_redundancy = max(jaccard_sim(cand["_words"], sel["_words"]) for sel in selected)
                 mmr_score = (mmr_lambda * relevance) - ((1.0 - mmr_lambda) * max_redundancy)
                 if mmr_score > best_mmr:
                     best_mmr = mmr_score
                     best_idx = i
 
             selected.append(unselected.pop(best_idx))
+
+        # Cleanup temporary word set keys
+        for c in candidates:
+            c.pop("_words", None)
 
         return selected

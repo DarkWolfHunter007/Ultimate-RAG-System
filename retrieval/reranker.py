@@ -34,12 +34,5 @@ class RerankerEngine:
             except Exception as e:
                 logger.warning(f"Reranking execution error: {e}")
 
-        # Lightweight Fallback: boost chunks containing key query words
-        words = set(query.lower().split())
-        for c in candidates:
-            c_words = set(c["content"].lower().split())
-            match_ratio = len(words & c_words) / max(1, len(words))
-            c["rerank_score"] = c.get("score", 0.5) + (0.2 * match_ratio)
-
-        candidates.sort(key=lambda x: x["rerank_score"], reverse=True)
+        # Fallback if neural cross-encoder model is not available
         return candidates[:top_n]
