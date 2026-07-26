@@ -125,6 +125,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Scroll to bottom button handler
+  const btnScrollBottom = document.getElementById("btnScrollBottom");
+  if (chatThread && btnScrollBottom) {
+    chatThread.addEventListener("scroll", () => {
+      const distanceToBottom = chatThread.scrollHeight - chatThread.scrollTop - chatThread.clientHeight;
+      if (distanceToBottom > 120) {
+        btnScrollBottom.classList.add("visible");
+      } else {
+        btnScrollBottom.classList.remove("visible");
+      }
+    });
+
+    btnScrollBottom.addEventListener("click", () => {
+      chatThread.scrollTo({
+        top: chatThread.scrollHeight,
+        behavior: "smooth"
+      });
+    });
+  }
+
   // Settings Internal Sidebar Navigation
   document.querySelectorAll(".settings-nav-item").forEach(btn => {
     btn.addEventListener("click", () => {

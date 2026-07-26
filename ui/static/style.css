@@ -1044,3 +1044,40 @@ input:checked + .slider:before { transform: translateX(20px); }
   padding: 0.85rem;
   border-top: 1px solid var(--bg-card-border);
 }
+
+/* Floating Scroll to Bottom Button */
+.scroll-bottom-btn {
+  position: absolute;
+  bottom: 85px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  z-index: 100;
+}
+
+.scroll-bottom-btn.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.scroll-bottom-btn:hover {
+  background: var(--accent-blue);
+  color: #ffffff;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+  transform: translateX(-50%) scale(1.1);
+}
