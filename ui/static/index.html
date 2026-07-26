@@ -48,6 +48,12 @@
             <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md" style="display:none;" />
             <div class="upload-icon-sm">📄 Drag & Drop Files</div>
             <p class="upload-sub">PDF, Markdown, TXT</p>
+            <div id="uploadProgressBox" class="progress-box" style="display:none;">
+              <div class="progress-bar-track">
+                <div id="uploadProgressBar" class="progress-bar-fill"></div>
+              </div>
+              <div id="uploadProgressText" class="progress-text">Processing... 0%</div>
+            </div>
             <div id="uploadStatus" class="status-msg"></div>
           </div>
 
@@ -360,6 +366,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=16.0"></script>
+  <script src="/static/app.js?v=17.0"></script>
 </body>
 </html>
