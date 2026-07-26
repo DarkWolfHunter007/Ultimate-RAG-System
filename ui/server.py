@@ -329,8 +329,31 @@ async def clear_index():
                     pass
     return {"message": "Corpus index and uploaded files successfully cleared."}
 
+chunking_status = {
+    "active": False,
+    "status": "Idle",
+    "percent": 0,
+    "processed_chunks": 0,
+    "total_chunks": 0,
+    "current_file": ""
+}
+
+@app.get("/api/upload/status")
+async def get_upload_status():
+    return chunking_status
+
 @app.post("/api/upload")
 async def upload_documents(files: List[UploadFile] = File(...)):
+    global chunking_status
+    chunking_status.update({
+        "active": True,
+        "status": f"Starting upload of {len(files)} file(s)...",
+        "percent": 5,
+        "processed_chunks": 0,
+        "total_chunks": 0,
+        "current_file": files[0].filename if files else ""
+    })
+
     chunker = SemanticChunker(chunk_size=350, chunk_overlap=40)
     total_indexed_chunks = 0
     successful_files = 0
@@ -338,8 +361,14 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
     BATCH_SIZE = 20  # Micro-batch size to prevent memory overload & HTTP timeouts
 
-    for file in files:
+    for idx, file in enumerate(files):
         file_path = os.path.join(DOCUMENTS_DIR, file.filename)
+        chunking_status.update({
+            "current_file": file.filename,
+            "status": f"Saving & parsing '{file.filename}' ({idx+1}/{len(files)})...",
+            "percent": int(10 + (idx / len(files)) * 80)
+        })
+
         try:
             # 1. Save file to dedicated documents directory
             with open(file_path, "wb") as buffer:
@@ -351,6 +380,11 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
             if not file_chunks:
                 continue
+
+            chunking_status.update({
+                "status": f"Created {len(file_chunks)} chunks for '{file.filename}'. Embedding...",
+                "total_chunks": len(file_chunks)
+            })
 
             # 3. Micro-batch embedding generation (20 chunks per request)
             file_embeddings = []
@@ -365,6 +399,14 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                 except Exception as batch_err:
                     logger.warning(f"Micro-batch embedding error for file '{file.filename}' ({batch_err}).")
 
+                processed = min(i + BATCH_SIZE, len(chunk_texts))
+                batch_percent = int(10 + ((idx + (processed / len(chunk_texts))) / len(files)) * 80)
+                chunking_status.update({
+                    "status": f"Embedding '{file.filename}' ({processed}/{len(chunk_texts)} chunks)...",
+                    "processed_chunks": processed,
+                    "percent": batch_percent
+                })
+
             # 4. Add file chunks to ChromaDB
             use_embeddings = file_embeddings if len(file_embeddings) == len(file_chunks) else None
             vector_indexer.add_chunks(file_chunks, embeddings=use_embeddings)
@@ -378,6 +420,7 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
     # 5. Re-index BM25 with full updated corpus
     if successful_files > 0:
+        chunking_status.update({"status": "Re-indexing BM25 keyword index...", "percent": 95})
         all_existing = vector_indexer.get_all_chunks()
         bm25_engine.index_chunks(all_existing)
 
@@ -386,6 +429,12 @@ async def upload_documents(files: List[UploadFile] = File(...)):
     msg = f"Successfully processed {successful_files}/{len(files)} files ({total_indexed_chunks} chunks)."
     if errors:
         msg += f" (Skipped {len(errors)} files due to errors)."
+
+    chunking_status.update({
+        "active": False,
+        "status": "Done",
+        "percent": 100
+    })
 
     return {
         "message": msg,

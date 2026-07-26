@@ -831,54 +831,49 @@ document.addEventListener("DOMContentLoaded", () => {
     const progressText = document.getElementById("uploadProgressText");
 
     if (progressBox) progressBox.style.display = "block";
-    if (progressBar) progressBar.style.width = "10%";
-    if (progressText) progressText.innerText = "Uploading to folder... 10%";
-    if (uploadStatus) uploadStatus.innerText = "⏳ Saving & Chunking...";
+    if (progressBar) progressBar.style.width = "5%";
+    if (progressText) progressText.innerText = "Starting chunking... 5%";
+
+    // Poll status interval
+    const pollInterval = setInterval(async () => {
+      try {
+        const sRes = await fetch("/api/upload/status");
+        if (sRes.ok) {
+          const statusData = await sRes.json();
+          if (statusData.active) {
+            if (progressBar) progressBar.style.width = `${statusData.percent}%`;
+            if (progressText) progressText.innerText = `${statusData.status} (${statusData.percent}%)`;
+          }
+        }
+      } catch (e) {}
+    }, 300);
 
     try {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/upload", true);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      clearInterval(pollInterval);
 
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const percent = Math.min(90, Math.round(10 + (e.loaded / e.total) * 80));
-          if (progressBar) progressBar.style.width = `${percent}%`;
-          if (progressText) progressText.innerText = `Chunking & Embedding... ${percent}%`;
-        }
-      };
+      if (progressBar) progressBar.style.width = "100%";
+      if (progressText) progressText.innerText = "Completed 100%";
 
-      xhr.onload = () => {
-        if (progressBar) progressBar.style.width = "100%";
-        if (progressText) progressText.innerText = "Completed 100%";
-
-        if (xhr.status === 200) {
-          const data = JSON.parse(xhr.responseText);
-          if (uploadStatus) uploadStatus.innerText = `✅ ${data.message}`;
-          showToast(data.message, "success");
-          loadStats();
-          loadDocuments();
-        } else {
-          if (uploadStatus) uploadStatus.innerText = `❌ Upload failed: HTTP ${xhr.status}`;
-          showToast("Upload failed", "error");
-        }
-
-        setTimeout(() => {
-          if (progressBox) progressBox.style.display = "none";
-          if (uploadStatus) uploadStatus.innerText = "";
-        }, 4000);
-      };
-
-      xhr.onerror = () => {
-        if (uploadStatus) uploadStatus.innerText = "❌ Upload connection failed";
-        showToast("Upload connection error", "error");
-        if (progressBox) progressBox.style.display = "none";
-      };
-
-      xhr.send(formData);
+      if (res.ok) {
+        const data = await res.json();
+        if (uploadStatus) uploadStatus.innerText = `✅ ${data.message}`;
+        showToast(data.message, "success");
+        loadStats();
+        loadDocuments();
+      } else {
+        if (uploadStatus) uploadStatus.innerText = `❌ Upload failed: HTTP ${res.status}`;
+        showToast("Upload failed", "error");
+      }
     } catch (err) {
+      clearInterval(pollInterval);
       if (uploadStatus) uploadStatus.innerText = `❌ Error: ${err.message}`;
-      if (progressBox) progressBox.style.display = "none";
-      setTimeout(() => { if (uploadStatus) uploadStatus.innerText = ""; }, 4000);
+      showToast("Upload failed: " + err.message, "error");
+    } finally {
+      setTimeout(() => {
+        if (progressBox) progressBox.style.display = "none";
+        if (uploadStatus) uploadStatus.innerText = "";
+      }, 4000);
     }
   }
 
