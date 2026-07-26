@@ -16,7 +16,7 @@ class ModelRouter:
         prompt: str,
         system_prompt: Optional[str] = None,
         temperature: float = 0.2,
-        max_tokens: int = 1024
+        max_tokens: int = 3072
     ) -> Dict[str, Any]:
         cfg = self.config_mgr.get_config()
         

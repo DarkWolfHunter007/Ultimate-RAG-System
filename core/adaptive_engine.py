@@ -114,11 +114,11 @@ class AdaptiveEngine:
                 history_str += f"{role_name}: {msg.get('content', '')}\n"
 
         system_prompt = (
-            "You are Ultimate-RAG-System, an enterprise AI assistant engaged in an interactive document chat. "
-            "Answer the user question thoroughly based on the provided structured <DOCUMENT_EXCERPT> tags and conversation history. "
-            "Use GitHub-flavored markdown for clear formatting (bold text, bullet points, headers, formatted code blocks). "
-            "Cite relevant document excerpts using bracketed numbers like [1], [2] inline where applicable. "
-            "If evidence is missing or context is insufficient, state clearly what is missing."
+            "You are Ultimate-RAG-System, an expert AI research assistant. "
+            "Answer the user's question directly, completely, and accurately using the provided <DOCUMENT_EXCERPT> context. "
+            "Synthesize all relevant information into a well-structured response using Markdown (headers, bullet points, bold text). "
+            "Cite your sources inline using bracketed numbers like [1], [2] matching the excerpt IDs. "
+            "Focus on delivering a complete, informative response based on the relevant context provided. Do not waste space explaining what unrelated documents do not say unless asked."
         )
         
         user_prompt = f"DOCUMENT CONTEXT:\n{context_str}\n\n"
@@ -126,7 +126,9 @@ class AdaptiveEngine:
             user_prompt += f"RECENT CONVERSATION HISTORY:\n{history_str}\n\n"
         user_prompt += f"USER QUESTION: {query}"
 
-        llm_response = await self.model_router.generate_completion(prompt=user_prompt, system_prompt=system_prompt, temperature=0.2)
+        llm_response = await self.model_router.generate_completion(
+            prompt=user_prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=3072
+        )
         telemetry.log_span("OpenRouter LLM Synthesis", (time.perf_counter() - t_llm) * 1000, f"Model: {cfg.llm_model}")
 
         answer_text = llm_response.get("content", "")
@@ -142,7 +144,9 @@ class AdaptiveEngine:
                 f"INSTRUCTION: The previous draft contained low-faithfulness statements. Revise the answer to adhere strictly "
                 f"and exclusively to the provided document context excerpts above."
             )
-            refined_res = await self.model_router.generate_completion(prompt=refine_prompt, system_prompt=system_prompt, temperature=0.1)
+            refined_res = await self.model_router.generate_completion(
+                prompt=refine_prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=3072
+            )
             answer_text = refined_res.get("content", answer_text)
             metrics = MetricsEvaluator.evaluate(query, answer_text, final_contexts)
             telemetry.log_span("Self-RAG Corrective Refinement", (time.perf_counter() - t_correct) * 1000)
