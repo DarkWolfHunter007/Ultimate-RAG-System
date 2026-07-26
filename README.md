@@ -130,6 +130,17 @@ http://localhost:8000
 
 ---
 
+## 🏷️ Release Notes
+
+### **v1.0.1 (Patch Release)**
+- 🎨 **ChatGPT-Style UI Layout**: Complete interface architectural overhaul featuring locked `100vh` viewport, fixed left sidebar with independent scrolling for 100+ chats, and floating smooth scroll-to-bottom arrow.
+- 📄 **Native Word (`.docx`) Support**: Integrated Microsoft Word document parsing with zero-dependency stdlib fallback (`zipfile` + `xml.etree`).
+- 🔀 **Multi-Query Expansion & RAG-Fusion**: Automatic query rephrasing into 3 perspectives combined using Reciprocal Rank Fusion (RRF).
+- 🔁 **Self-RAG Corrective Refinement**: Automated self-evaluation loop that detects missing evidence and refines generated answers.
+- 📊 **Embedded Telemetry Metadata**: Active model, provider, and hybrid mode metadata directly rendered inside the RAG Telemetry drawer on every answer.
+
+---
+
 ## 📜 License & Credit
 
 Created and maintained by **Allen MT Maliyil** ([@DarkWolfHunter007](https://github.com/DarkWolfHunter007)). Distributed under the MIT License.

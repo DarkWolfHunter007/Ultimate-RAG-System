@@ -17,7 +17,7 @@ from ingestion.semantic_chunker import SemanticChunker
 from ingestion.vector_indexer import VectorIndexer
 from retrieval.bm25_engine import BM25Engine
 
-app = FastAPI(title="Ultimate-RAG-System API", version="1.0.0")
+app = FastAPI(title="Ultimate-RAG-System API", version="1.0.1")
 
 app.add_middleware(
     CORSMiddleware,
