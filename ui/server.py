@@ -331,39 +331,67 @@ async def clear_index():
 
 @app.post("/api/upload")
 async def upload_documents(files: List[UploadFile] = File(...)):
-    all_chunks = []
     chunker = SemanticChunker(chunk_size=350, chunk_overlap=40)
+    total_indexed_chunks = 0
+    successful_files = 0
+    errors = []
+
+    BATCH_SIZE = 20  # Micro-batch size to prevent memory overload & HTTP timeouts
 
     for file in files:
         file_path = os.path.join(DOCUMENTS_DIR, file.filename)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        parsed_pages = MultiParser.parse_file(file_path, file.filename)
-        chunks = chunker.chunk_documents(parsed_pages)
-        all_chunks.extend(chunks)
-
-    if all_chunks:
-        # Generate embeddings using active embedding model
-        embeddings = None
         try:
-            chunk_texts = [c["content"] for c in all_chunks]
-            embeddings = await adaptive_engine.model_router.generate_embeddings(chunk_texts)
-        except Exception as e:
-            logger.warning(f"Could not generate custom embeddings during upload: {e}")
+            # 1. Save file to dedicated documents directory
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
 
-        # Index in ChromaDB and BM25
-        vector_indexer.add_chunks(all_chunks, embeddings=embeddings)
+            # 2. Parse & Chunk single file
+            parsed_pages = MultiParser.parse_file(file_path, file.filename)
+            file_chunks = chunker.chunk_documents(parsed_pages)
 
-        # Update BM25 with full chunk set
+            if not file_chunks:
+                continue
+
+            # 3. Micro-batch embedding generation (20 chunks per request)
+            file_embeddings = []
+            chunk_texts = [c["content"] for c in file_chunks]
+            
+            for i in range(0, len(chunk_texts), BATCH_SIZE):
+                batch_texts = chunk_texts[i:i + BATCH_SIZE]
+                try:
+                    batch_embs = await adaptive_engine.model_router.generate_embeddings(batch_texts)
+                    if batch_embs and isinstance(batch_embs, list):
+                        file_embeddings.extend(batch_embs)
+                except Exception as batch_err:
+                    logger.warning(f"Micro-batch embedding error for file '{file.filename}' ({batch_err}).")
+
+            # 4. Add file chunks to ChromaDB
+            use_embeddings = file_embeddings if len(file_embeddings) == len(file_chunks) else None
+            vector_indexer.add_chunks(file_chunks, embeddings=use_embeddings)
+
+            total_indexed_chunks += len(file_chunks)
+            successful_files += 1
+
+        except Exception as file_err:
+            logger.error(f"Error processing file '{file.filename}': {file_err}")
+            errors.append(f"{file.filename}: {str(file_err)}")
+
+    # 5. Re-index BM25 with full updated corpus
+    if successful_files > 0:
         all_existing = vector_indexer.get_all_chunks()
         bm25_engine.index_chunks(all_existing)
 
     tier, total = adaptive_engine.get_corpus_tier()
+    
+    msg = f"Successfully processed {successful_files}/{len(files)} files ({total_indexed_chunks} chunks)."
+    if errors:
+        msg += f" (Skipped {len(errors)} files due to errors)."
+
     return {
-        "message": f"Successfully copied & indexed {len(all_chunks)} chunks across {len(files)} files.",
+        "message": msg,
         "total_chunks": total,
-        "corpus_tier": tier
+        "corpus_tier": tier,
+        "errors": errors
     }
 
 class CreateChatRequest(BaseModel):
