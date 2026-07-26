@@ -50,11 +50,12 @@ class SystemConfig(BaseModel):
     # Feature Toggles
     enable_reranker: bool = Field(default=False)
     enable_hyde: bool = Field(default=False)
-    enable_graph_rag: bool = Field(default=False)
-    enable_ocr: bool = Field(default=False)
     strict_evidence: bool = Field(default=True)
+    confirm_deletion: bool = Field(default=True)
 
 class ConfigManager:
+    """Central configuration manager for system settings."""
+
     _instance = None
 
     def __init__(self):

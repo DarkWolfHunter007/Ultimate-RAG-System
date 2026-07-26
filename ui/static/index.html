@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ultimate RAG System - Conversational AI & Settings</title>
-  <link rel="stylesheet" href="/static/style.css?v=15.0">
+  <link rel="stylesheet" href="/static/style.css?v=25.0">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Markdown Parser for Pretty Formatting -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -38,16 +38,18 @@
     <section id="viewWorkspace" class="view-section active">
       <div class="chat-workspace-layout">
         
-        <!-- Left Sidebar: Chat Sessions & Ingestion -->
-        <aside class="chat-sidebar">
-          
-          <button id="btnNewChat" class="btn-primary btn-block">➕ New Chat Session</button>
+        <!-- Left Sidebar (Uploads, Document List & Chat Sessions) -->
+        <aside id="chatSidebar" class="chat-sidebar">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+            <button id="btnNewChat" class="btn-primary" style="flex: 1; margin-right: 0.5rem;">➕ New Chat Session</button>
+            <button id="btnCollapseSidebar" class="btn-icon-square" title="Collapse Sidebar (Wide View)">«</button>
+          </div>
 
-          <!-- Ingestion Drop Zone -->
+          <!-- Document Upload Dropzone -->
           <div class="sidebar-card upload-card" id="dropZone">
-            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md" style="display:none;" />
+            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md,.docx,.doc" style="display:none;" />
             <div class="upload-icon-sm">📄 Drag & Drop Files</div>
-            <p class="upload-sub">PDF, Markdown, TXT</p>
+            <p class="upload-sub">PDF, Word (.docx), Markdown, TXT</p>
             <div id="uploadProgressBox" class="progress-box" style="display:none;">
               <div class="progress-bar-track">
                 <div id="uploadProgressBar" class="progress-bar-fill"></div>
@@ -76,6 +78,7 @@
           
           <!-- Active Config Summary Banner -->
           <div class="config-banner">
+            <button id="btnExpandSidebar" class="btn-icon-square" style="display:none;" title="Expand Sidebar">» Sidebar</button>
             <div class="banner-item">
               <span class="label">Provider:</span>
               <span id="summaryProvider" class="val">OpenRouter</span>
@@ -317,6 +320,14 @@
                   </div>
                   <label class="switch"><input type="checkbox" id="toggleStrict" checked><span class="slider"></span></label>
                 </div>
+
+                <div class="toggle-row">
+                  <div>
+                    <strong>Confirm Deletion Popups</strong>
+                    <div class="toggle-desc">Prompts a confirmation popup when deleting documents or chat sessions.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="toggleConfirmDelete" checked><span class="slider"></span></label>
+                </div>
               </div>
 
               <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--bg-card-border);">
@@ -366,6 +377,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=20.0"></script>
+  <script src="/static/app.js?v=25.0"></script>
 </body>
 </html>

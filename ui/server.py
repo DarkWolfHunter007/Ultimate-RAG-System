@@ -52,6 +52,7 @@ class ConfigUpdateRequest(BaseModel):
     enable_hyde: Optional[bool] = None
     enable_graph_rag: Optional[bool] = None
     strict_evidence: Optional[bool] = None
+    confirm_deletion: Optional[bool] = None
 
 class AddModelRequest(BaseModel):
     id: str
@@ -276,19 +277,24 @@ async def list_documents():
     all_chunks = vector_indexer.get_all_chunks()
     chunk_counts = {}
     for c in all_chunks:
-        src = c.get("metadata", {}).get("source", "")
+        meta = c.get("metadata", {}) or {}
+        src = str(meta.get("source", ""))
         if src:
+            base_name = os.path.basename(src)
             chunk_counts[src] = chunk_counts.get(src, 0) + 1
+            chunk_counts[base_name] = chunk_counts.get(base_name, 0) + 1
 
     docs = []
     for fname in os.listdir(DOCUMENTS_DIR):
         fpath = os.path.join(DOCUMENTS_DIR, fname)
         if os.path.isfile(fpath):
             stat = os.stat(fpath)
+            base_f = os.path.basename(fname)
+            cnt = chunk_counts.get(fname, chunk_counts.get(base_f, 0))
             docs.append({
                 "filename": fname,
                 "size_bytes": stat.st_size,
-                "chunk_count": chunk_counts.get(fname, 0),
+                "chunk_count": cnt,
                 "modified_at": stat.st_mtime
             })
     docs.sort(key=lambda x: x["modified_at"], reverse=True)

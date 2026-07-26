@@ -59,6 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const toggleReranker = document.getElementById("toggleReranker");
   const toggleHyde = document.getElementById("toggleHyde");
   const toggleStrict = document.getElementById("toggleStrict");
+  const toggleConfirmDelete = document.getElementById("toggleConfirmDelete");
   const btnClearIndex = document.getElementById("btnClearIndex");
   const btnResetConfig = document.getElementById("btnResetConfig");
 
@@ -105,6 +106,25 @@ document.addEventListener("DOMContentLoaded", () => {
   if (tabSettings) tabSettings.addEventListener("click", () => switchTab("settings"));
   if (btnJumpSettings) btnJumpSettings.addEventListener("click", () => openSettingsPanel("setPanelModels"));
 
+  // Sidebar Collapse/Expand Toggle
+  const btnCollapseSidebar = document.getElementById("btnCollapseSidebar");
+  const btnExpandSidebar = document.getElementById("btnExpandSidebar");
+  const chatLayout = document.querySelector(".chat-workspace-layout");
+
+  if (btnCollapseSidebar && chatLayout) {
+    btnCollapseSidebar.addEventListener("click", () => {
+      chatLayout.classList.add("sidebar-collapsed");
+      if (btnExpandSidebar) btnExpandSidebar.style.display = "inline-flex";
+    });
+  }
+
+  if (btnExpandSidebar && chatLayout) {
+    btnExpandSidebar.addEventListener("click", () => {
+      chatLayout.classList.remove("sidebar-collapsed");
+      btnExpandSidebar.style.display = "none";
+    });
+  }
+
   // Settings Internal Sidebar Navigation
   document.querySelectorAll(".settings-nav-item").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -129,6 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadConfig();
   loadStats();
   loadChats();
+  loadDocuments();
 
   async function loadConfig() {
     try {
@@ -197,7 +218,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function deleteDocument(filename) {
-    if (!confirm(`Are you sure you want to delete document '${filename}' and purge all its vector chunks?`)) return;
+    const shouldConfirm = !currentConfig || currentConfig.confirm_deletion !== false;
+    if (shouldConfirm && !confirm(`Are you sure you want to delete document '${filename}' and purge all its vector chunks?`)) return;
     try {
       const res = await fetch(`/api/documents/${encodeURIComponent(filename)}`, { method: "DELETE" });
       const data = await res.json();
@@ -285,7 +307,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function deleteChat(chatId) {
-    if (!confirm("Are you sure you want to delete this conversation session?")) return;
+    const shouldConfirm = !currentConfig || currentConfig.confirm_deletion !== false;
+    if (shouldConfirm && !confirm("Are you sure you want to delete this conversation session?")) return;
     try {
       await fetch(`/api/chats/${chatId}`, { method: "DELETE" });
       if (activeChatId === chatId) activeChatId = null;
@@ -396,6 +419,35 @@ document.addEventListener("DOMContentLoaded", () => {
           ${excerptsHTML}
         </div>
       `;
+
+      // Attach floating copy buttons to all code blocks
+      msgWrapper.querySelectorAll("pre").forEach(pre => {
+        pre.style.position = "relative";
+        const btnCopy = document.createElement("button");
+        btnCopy.className = "btn-copy-code";
+        btnCopy.innerText = "📋 Copy";
+        btnCopy.addEventListener("click", () => {
+          const codeText = pre.querySelector("code") ? pre.querySelector("code").innerText : pre.innerText;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(codeText).then(() => {
+              btnCopy.innerText = "✓ Copied!";
+              setTimeout(() => { btnCopy.innerText = "📋 Copy"; }, 2000);
+            }).catch(() => {
+              btnCopy.innerText = "Copy Failed";
+            });
+          } else {
+            const ta = document.createElement("textarea");
+            ta.value = codeText;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+            btnCopy.innerText = "✓ Copied!";
+            setTimeout(() => { btnCopy.innerText = "📋 Copy"; }, 2000);
+          }
+        });
+        pre.appendChild(btnCopy);
+      });
     }
 
     chatThread.appendChild(msgWrapper);
@@ -517,6 +569,7 @@ document.addEventListener("DOMContentLoaded", () => {
     toggleReranker.checked = cfg.enable_reranker;
     toggleHyde.checked = cfg.enable_hyde;
     toggleStrict.checked = cfg.strict_evidence;
+    if (toggleConfirmDelete) toggleConfirmDelete.checked = cfg.confirm_deletion !== false;
 
     populateModelSelectors(cfg);
     renderModelsTable(cfg.custom_models || []);
@@ -561,7 +614,8 @@ document.addEventListener("DOMContentLoaded", () => {
       top_n_final: parseInt(topNContext.value),
       enable_reranker: toggleReranker.checked,
       enable_hyde: toggleHyde.checked,
-      strict_evidence: toggleStrict.checked
+      strict_evidence: toggleStrict.checked,
+      confirm_deletion: toggleConfirmDelete ? toggleConfirmDelete.checked : true
     };
 
     try {
@@ -593,7 +647,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (activeLlmSelect) activeLlmSelect.addEventListener("change", () => saveConfig(true));
   if (activeEmbeddingSelect) activeEmbeddingSelect.addEventListener("change", () => saveConfig(true));
 
-  [toggleReranker, toggleHyde, toggleStrict].forEach(el => {
+  [toggleReranker, toggleHyde, toggleStrict, toggleConfirmDelete].forEach(el => {
     if (el) el.addEventListener("change", () => saveConfig(false, true));
   });
 

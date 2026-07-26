@@ -187,7 +187,18 @@ body {
   grid-template-columns: 300px 1fr;
   gap: 1.5rem;
   flex: 1;
-  height: calc(100vh - 110px);
+  height: calc(100vh - 90px);
+  overflow: hidden;
+  transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-workspace-layout.sidebar-collapsed {
+  grid-template-columns: 1fr;
+  gap: 0rem;
+}
+
+.chat-workspace-layout.sidebar-collapsed .chat-sidebar {
+  display: none !important;
 }
 
 .chat-sidebar {
@@ -200,6 +211,63 @@ body {
   flex-direction: column;
   gap: 1rem;
   overflow-y: auto;
+  height: 100%;
+}
+
+.btn-icon-square {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--bg-card-border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon-square:hover {
+  background: rgba(0, 242, 254, 0.15);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+}
+
+/* Chat Main Area */
+.chat-main-area {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  height: 100%;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.config-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(10, 16, 28, 0.7);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 1rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* Chat Thread */
+.chat-thread {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-right: 0.5rem;
+  min-height: 0;
 }
 
 .btn-block {
@@ -565,6 +633,7 @@ body {
   border-radius: var(--radius-lg);
   padding: 0.6rem;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .chat-textarea {
@@ -918,4 +987,60 @@ input:checked + .slider:before { transform: translateX(20px); }
   .add-model-grid { grid-template-columns: repeat(2, 1fr); }
   .about-grid { grid-template-columns: 1fr; }
   .about-desc { border-left: none; padding-left: 0; border-top: 1px solid var(--bg-card-border); padding-top: 1rem; }
+}
+
+/* Code Block Floating Copy Button */
+.code-wrapper {
+  position: relative;
+  margin: 0.75rem 0;
+}
+
+.btn-copy-code {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--bg-card-border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.btn-copy-code:hover {
+  background: rgba(0, 242, 254, 0.2);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+}
+
+/* Telemetry Details Drawer */
+.telemetry-drawer {
+  margin-top: 0.75rem;
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius-md);
+  background: rgba(10, 16, 28, 0.5);
+  font-size: 0.8rem;
+  overflow: hidden;
+}
+
+.telemetry-drawer summary {
+  padding: 0.5rem 0.85rem;
+  cursor: pointer;
+  color: var(--accent-cyan);
+  font-weight: 600;
+  user-select: none;
+  background: rgba(0, 242, 254, 0.05);
+}
+
+.telemetry-drawer summary:hover {
+  background: rgba(0, 242, 254, 0.1);
+}
+
+.telemetry-content {
+  padding: 0.85rem;
+  border-top: 1px solid var(--bg-card-border);
 }

@@ -62,23 +62,44 @@ class ModelRouter:
             "max_tokens": max_tokens
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(f"{cfg.openrouter_base_url}/chat/completions", headers=headers, json=payload)
-            if resp.status_code != 200:
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(f"{cfg.openrouter_base_url}/chat/completions", headers=headers, json=payload)
+                if resp.status_code != 200:
+                    err_msg = f"HTTP {resp.status_code}"
+                    try:
+                        err_json = resp.json()
+                        err_msg = err_json.get("error", {}).get("message", resp.text)
+                    except Exception:
+                        pass
+                    return {
+                        "content": f"⚠️ **OpenRouter API Error [{resp.status_code}]:** {err_msg}\n\n*Check your API key in Settings.*",
+                        "model": cfg.llm_model,
+                        "provider": "openrouter",
+                        "usage": {"total_tokens": 0}
+                    }
+                data = resp.json()
+                content = data["choices"][0]["message"]["content"]
+                usage = data.get("usage", {})
                 return {
-                    "content": f"⚠️ OpenRouter API error [{resp.status_code}]: {resp.text}",
+                    "content": content,
                     "model": cfg.llm_model,
                     "provider": "openrouter",
-                    "usage": {"total_tokens": 0}
+                    "usage": usage
                 }
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"]
-            usage = data.get("usage", {})
+        except httpx.TimeoutException:
             return {
-                "content": content,
+                "content": f"⚠️ **Request Timeout:** OpenRouter API did not respond within 60 seconds. Please try again or switch model.",
                 "model": cfg.llm_model,
                 "provider": "openrouter",
-                "usage": usage
+                "usage": {"total_tokens": 0}
+            }
+        except Exception as e:
+            return {
+                "content": f"⚠️ **Connection Error:** {str(e)}",
+                "model": cfg.llm_model,
+                "provider": "openrouter",
+                "usage": {"total_tokens": 0}
             }
 
     async def _call_openrouter_embeddings(self, cfg, texts: List[str]) -> List[List[float]]:
