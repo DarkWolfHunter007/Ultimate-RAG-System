@@ -87,6 +87,25 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
+.author-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  text-decoration: none;
+  background: rgba(0, 242, 254, 0.1);
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  padding: 0.2rem 0.55rem;
+  border-radius: 12px;
+  -webkit-text-fill-color: var(--accent-cyan);
+  transition: all 0.2s ease;
+  margin-left: 0.25rem;
+}
+
+.author-tag:hover {
+  background: rgba(0, 242, 254, 0.25);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.3);
+}
+
 /* Top Nav Tabs */
 .nav-tabs {
   display: flex;

@@ -51,8 +51,8 @@ class ModelRouter:
 
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "HTTP-Referer": "https://github.com/Ultimate-RAG-System",
-            "X-Title": "Ultimate RAG System",
+            "HTTP-Referer": "https://github.com/DarkWolfHunter007/Ultimate-RAG-System",
+            "X-Title": "Ultimate RAG System by Allen MT Maliyil",
             "Content-Type": "application/json"
         }
         payload = {
@@ -88,8 +88,8 @@ class ModelRouter:
 
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "HTTP-Referer": "https://github.com/Ultimate-RAG-System",
-            "X-Title": "Ultimate RAG System",
+            "HTTP-Referer": "https://github.com/DarkWolfHunter007/Ultimate-RAG-System",
+            "X-Title": "Ultimate RAG System by Allen MT Maliyil",
             "Content-Type": "application/json"
         }
         payload = {
