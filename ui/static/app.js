@@ -827,33 +827,50 @@ document.addEventListener("DOMContentLoaded", () => {
     for (let f of files) formData.append("files", f);
 
     const progressBox = document.getElementById("uploadProgressBox");
-    const progressBar = document.getElementById("uploadProgressBar");
-    const progressText = document.getElementById("uploadProgressText");
+    if (progressBox) {
+      progressBox.style.display = "block";
+      progressBox.innerHTML = "";
+    }
 
-    if (progressBox) progressBox.style.display = "block";
-    if (progressBar) progressBar.style.width = "5%";
-    if (progressText) progressText.innerText = "Starting chunking... 5%";
+    if (uploadStatus) uploadStatus.innerText = "⏳ Processing upload stream...";
 
     // Poll status interval
     const pollInterval = setInterval(async () => {
       try {
         const sRes = await fetch("/api/upload/status");
         if (sRes.ok) {
-          const statusData = await sRes.json();
-          if (statusData.active) {
-            if (progressBar) progressBar.style.width = `${statusData.percent}%`;
-            if (progressText) progressText.innerText = `${statusData.status} (${statusData.percent}%)`;
+          const sData = await sRes.json();
+          
+          // Live update chunk counter badge in top header
+          if (tierBadge && sData.total_chunks !== undefined) {
+            tierBadge.innerText = `Corpus: ${sData.corpus_tier || 'Nano'} (${sData.total_chunks} Chunks)`;
+            tierBadge.className = `badge ${(sData.corpus_tier || 'nano').toLowerCase()}`;
+          }
+
+          if (sData.active && sData.files && progressBox) {
+            let html = "";
+            sData.files.forEach(f => {
+              html += `
+                <div style="margin-bottom:0.4rem; font-size:0.75rem; text-align:left;">
+                  <div style="display:flex; justify-content:space-between; color:var(--text-main); margin-bottom:0.15rem;">
+                    <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px;" title="${escapeHtml(f.filename)}">📄 ${escapeHtml(f.filename)}</span>
+                    <span style="color:var(--accent-cyan); font-weight:600;">${f.status} (${f.percent}%)</span>
+                  </div>
+                  <div class="progress-bar-track">
+                    <div class="progress-bar-fill" style="width:${f.percent}%;"></div>
+                  </div>
+                </div>
+              `;
+            });
+            progressBox.innerHTML = html;
           }
         }
       } catch (e) {}
-    }, 300);
+    }, 250);
 
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       clearInterval(pollInterval);
-
-      if (progressBar) progressBar.style.width = "100%";
-      if (progressText) progressText.innerText = "Completed 100%";
 
       if (res.ok) {
         const data = await res.json();

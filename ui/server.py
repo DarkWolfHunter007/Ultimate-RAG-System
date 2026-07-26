@@ -331,11 +331,9 @@ async def clear_index():
 
 chunking_status = {
     "active": False,
-    "status": "Idle",
-    "percent": 0,
-    "processed_chunks": 0,
     "total_chunks": 0,
-    "current_file": ""
+    "corpus_tier": "Nano",
+    "files": []
 }
 
 @app.get("/api/upload/status")
@@ -345,14 +343,23 @@ async def get_upload_status():
 @app.post("/api/upload")
 async def upload_documents(files: List[UploadFile] = File(...)):
     global chunking_status
-    chunking_status.update({
+    initial_tier, initial_chunks = adaptive_engine.get_corpus_tier()
+    
+    file_items = [
+        {
+            "filename": f.filename,
+            "status": "Queued",
+            "percent": 0,
+            "chunks": 0
+        } for f in files
+    ]
+
+    chunking_status = {
         "active": True,
-        "status": f"Starting upload of {len(files)} file(s)...",
-        "percent": 5,
-        "processed_chunks": 0,
-        "total_chunks": 0,
-        "current_file": files[0].filename if files else ""
-    })
+        "total_chunks": initial_chunks,
+        "corpus_tier": initial_tier,
+        "files": file_items
+    }
 
     chunker = SemanticChunker(chunk_size=350, chunk_overlap=40)
     total_indexed_chunks = 0
@@ -363,37 +370,31 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
     for idx, file in enumerate(files):
         file_path = os.path.join(DOCUMENTS_DIR, file.filename)
-        
-        # Step 1: Save file to disk (0-30%)
-        chunking_status.update({
-            "current_file": file.filename,
-            "status": f"📁 Saved '{file.filename}' to folder (Step 1/3)",
-            "percent": int(10 + (idx / len(files)) * 20)
-        })
+        file_items[idx]["status"] = "Saving..."
+        file_items[idx]["percent"] = 15
 
         try:
+            # 1. Save file to disk
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
 
-            # Step 2: Parse & Chunk document (30-60%)
-            chunking_status.update({
-                "status": f"✂️ Chunking '{file.filename}' into semantic blocks (Step 2/3)...",
-                "percent": int(30 + (idx / len(files)) * 30)
-            })
+            # 2. Parse & Chunk document
+            file_items[idx]["status"] = "Chunking..."
+            file_items[idx]["percent"] = 40
 
             parsed_pages = MultiParser.parse_file(file_path, file.filename)
             file_chunks = chunker.chunk_documents(parsed_pages)
 
             if not file_chunks:
+                file_items[idx]["status"] = "Empty"
+                file_items[idx]["percent"] = 100
                 continue
 
-            chunking_status.update({
-                "status": f"✂️ Chunked '{file.filename}' into {len(file_chunks)} blocks. Starting embeddings (Step 3/3)...",
-                "total_chunks": len(file_chunks),
-                "percent": int(60 + (idx / len(files)) * 10)
-            })
+            file_items[idx]["chunks"] = len(file_chunks)
+            file_items[idx]["status"] = f"Embedding {len(file_chunks)} chunks..."
+            file_items[idx]["percent"] = 60
 
-            # Step 3: Micro-batch embedding generation (60-95%)
+            # 3. Micro-batch embedding generation
             file_embeddings = []
             chunk_texts = [c["content"] for c in file_chunks]
             
@@ -407,12 +408,9 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                     logger.warning(f"Micro-batch embedding error for file '{file.filename}' ({batch_err}).")
 
                 processed = min(i + BATCH_SIZE, len(chunk_texts))
-                batch_percent = int(70 + ((idx + (processed / len(chunk_texts))) / len(files)) * 25)
-                chunking_status.update({
-                    "status": f"🧠 Embedding '{file.filename}' ({processed}/{len(chunk_texts)} chunks)...",
-                    "processed_chunks": processed,
-                    "percent": batch_percent
-                })
+                emb_percent = int(60 + (processed / len(chunk_texts)) * 35)
+                file_items[idx]["percent"] = emb_percent
+                file_items[idx]["status"] = f"Embedding ({processed}/{len(chunk_texts)} chunks)"
 
             # 4. Add file chunks to ChromaDB
             use_embeddings = file_embeddings if len(file_embeddings) == len(file_chunks) else None
@@ -420,33 +418,38 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
             total_indexed_chunks += len(file_chunks)
             successful_files += 1
+            file_items[idx]["percent"] = 100
+            file_items[idx]["status"] = "Indexed"
+
+            current_tier, current_chunks = adaptive_engine.get_corpus_tier()
+            chunking_status["total_chunks"] = current_chunks
+            chunking_status["corpus_tier"] = current_tier
 
         except Exception as file_err:
             logger.error(f"Error processing file '{file.filename}': {file_err}")
             errors.append(f"{file.filename}: {str(file_err)}")
+            file_items[idx]["status"] = "Error"
+            file_items[idx]["percent"] = 100
 
     # 5. Re-index BM25 with full updated corpus
     if successful_files > 0:
-        chunking_status.update({"status": "Re-indexing BM25 keyword index...", "percent": 95})
         all_existing = vector_indexer.get_all_chunks()
         bm25_engine.index_chunks(all_existing)
 
-    tier, total = adaptive_engine.get_corpus_tier()
+    final_tier, final_chunks = adaptive_engine.get_corpus_tier()
     
     msg = f"Successfully processed {successful_files}/{len(files)} files ({total_indexed_chunks} chunks)."
     if errors:
         msg += f" (Skipped {len(errors)} files due to errors)."
 
-    chunking_status.update({
-        "active": False,
-        "status": "Done",
-        "percent": 100
-    })
+    chunking_status["active"] = False
+    chunking_status["total_chunks"] = final_chunks
+    chunking_status["corpus_tier"] = final_tier
 
     return {
         "message": msg,
-        "total_chunks": total,
-        "corpus_tier": tier,
+        "total_chunks": final_chunks,
+        "corpus_tier": final_tier,
         "errors": errors
     }
 
