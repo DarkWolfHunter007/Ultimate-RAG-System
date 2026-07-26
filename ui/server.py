@@ -363,18 +363,24 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 
     for idx, file in enumerate(files):
         file_path = os.path.join(DOCUMENTS_DIR, file.filename)
+        
+        # Step 1: Save file to disk (0-30%)
         chunking_status.update({
             "current_file": file.filename,
-            "status": f"Saving & parsing '{file.filename}' ({idx+1}/{len(files)})...",
-            "percent": int(10 + (idx / len(files)) * 80)
+            "status": f"📁 Saved '{file.filename}' to folder (Step 1/3)",
+            "percent": int(10 + (idx / len(files)) * 20)
         })
 
         try:
-            # 1. Save file to dedicated documents directory
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
 
-            # 2. Parse & Chunk single file
+            # Step 2: Parse & Chunk document (30-60%)
+            chunking_status.update({
+                "status": f"✂️ Chunking '{file.filename}' into semantic blocks (Step 2/3)...",
+                "percent": int(30 + (idx / len(files)) * 30)
+            })
+
             parsed_pages = MultiParser.parse_file(file_path, file.filename)
             file_chunks = chunker.chunk_documents(parsed_pages)
 
@@ -382,11 +388,12 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                 continue
 
             chunking_status.update({
-                "status": f"Created {len(file_chunks)} chunks for '{file.filename}'. Embedding...",
-                "total_chunks": len(file_chunks)
+                "status": f"✂️ Chunked '{file.filename}' into {len(file_chunks)} blocks. Starting embeddings (Step 3/3)...",
+                "total_chunks": len(file_chunks),
+                "percent": int(60 + (idx / len(files)) * 10)
             })
 
-            # 3. Micro-batch embedding generation (20 chunks per request)
+            # Step 3: Micro-batch embedding generation (60-95%)
             file_embeddings = []
             chunk_texts = [c["content"] for c in file_chunks]
             
@@ -400,9 +407,9 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                     logger.warning(f"Micro-batch embedding error for file '{file.filename}' ({batch_err}).")
 
                 processed = min(i + BATCH_SIZE, len(chunk_texts))
-                batch_percent = int(10 + ((idx + (processed / len(chunk_texts))) / len(files)) * 80)
+                batch_percent = int(70 + ((idx + (processed / len(chunk_texts))) / len(files)) * 25)
                 chunking_status.update({
-                    "status": f"Embedding '{file.filename}' ({processed}/{len(chunk_texts)} chunks)...",
+                    "status": f"🧠 Embedding '{file.filename}' ({processed}/{len(chunk_texts)} chunks)...",
                     "processed_chunks": processed,
                     "percent": batch_percent
                 })
