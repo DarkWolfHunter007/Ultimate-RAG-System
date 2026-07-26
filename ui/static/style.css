@@ -814,9 +814,26 @@ input[type="range"] { width: 100%; accent-color: var(--accent-cyan); cursor: poi
 input:checked + .slider { background-color: var(--accent-cyan); }
 input:checked + .slider:before { transform: translateX(20px); }
 
+.about-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.about-desc {
+  border-left: 1px solid var(--bg-card-border);
+  padding-left: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
 @media (max-width: 1024px) {
   .chat-workspace-layout { grid-template-columns: 1fr; }
   .settings-grid { grid-template-columns: 1fr; }
   .col-span-2 { grid-column: span 1; }
   .add-model-grid { grid-template-columns: repeat(2, 1fr); }
+  .about-grid { grid-template-columns: 1fr; }
+  .about-desc { border-left: none; padding-left: 0; border-top: 1px solid var(--bg-card-border); padding-top: 1rem; }
 }
