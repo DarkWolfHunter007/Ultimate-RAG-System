@@ -665,11 +665,11 @@ label {
 .input-with-btn { display: flex; gap: 0.5rem; }
 .form-hint { font-size: 0.75rem; color: var(--text-muted); }
 
-/* Dedicated Settings Layout */
+/* Dedicated Settings Split Layout */
 .settings-container {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .settings-header h2 {
@@ -682,10 +682,69 @@ label {
 
 .settings-header p { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.3rem; }
 
-.settings-grid {
+.settings-split-layout {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 260px 1fr;
   gap: 1.5rem;
+  align-items: start;
+}
+
+.settings-nav-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem;
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.settings-nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+}
+
+.settings-nav-item.active {
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.15), rgba(79, 172, 254, 0.15));
+  border-color: var(--accent-cyan);
+  color: var(--text-main);
+  box-shadow: 0 4px 15px rgba(0, 242, 254, 0.15);
+}
+
+.settings-nav-item .nav-icon {
+  font-size: 1.05rem;
+}
+
+.settings-content-area {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.settings-panel {
+  display: none;
+  animation: fadeIn 0.25s ease;
+}
+
+.settings-panel.active {
+  display: block;
 }
 
 .col-span-2 { grid-column: span 2; }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ultimate RAG System - Conversational AI & Settings</title>
-  <link rel="stylesheet" href="/static/style.css?v=6.0">
+  <link rel="stylesheet" href="/static/style.css?v=15.0">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Markdown Parser for Pretty Formatting -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -109,7 +109,7 @@
       </div>
     </section>
 
-    <!-- ==================== VIEW 2: DEDICATED SETTINGS PAGE ==================== -->
+    <!-- ==================== VIEW 2: DEDICATED SETTINGS PAGE (SIDEBAR LAYOUT) ==================== -->
     <section id="viewSettings" class="view-section">
       <div class="settings-container">
         
@@ -118,215 +118,241 @@
           <p>Configure API providers, add custom models, test model latency & ping connectivity, and adjust retrieval algorithms.</p>
         </div>
 
-        <div class="settings-grid">
+        <div class="settings-split-layout">
           
-          <!-- Card 1: Provider & Credentials -->
-          <div class="card settings-card">
-            <div class="card-header">
-              <h3>🔑 API Provider & Credentials</h3>
-            </div>
+          <!-- Left Settings Menu Sidebar -->
+          <aside class="settings-nav-sidebar">
+            <button class="settings-nav-item active" data-target="setPanelProvider">
+              <span class="nav-icon">🔑</span> API Provider & Credentials
+            </button>
+            <button class="settings-nav-item" data-target="setPanelModels">
+              <span class="nav-icon">🤖</span> Model Registry & Ping
+            </button>
+            <button class="settings-nav-item" data-target="setPanelRetrieval">
+              <span class="nav-icon">🎛️</span> Retrieval & Tuning
+            </button>
+            <button class="settings-nav-item" data-target="setPanelMaintenance">
+              <span class="nav-icon">⚡</span> Pipeline Toggles & Data
+            </button>
+            <button class="settings-nav-item" data-target="setPanelAbout">
+              <span class="nav-icon">ℹ️</span> About & Author Credits
+            </button>
+          </aside>
+
+          <!-- Right Settings Content Panels -->
+          <main class="settings-content-area">
             
-            <div class="form-group">
-              <label for="providerSelect">Default API Provider</label>
-              <select id="providerSelect" class="form-control">
-                <option value="openrouter">OpenRouter API</option>
-                <option value="ollama">Local Ollama</option>
-              </select>
-            </div>
-
-            <div class="form-group" id="apiKeyGroup">
-              <label for="apiKeyInput">OpenRouter API Key</label>
-              <div class="input-with-btn">
-                <input type="password" id="apiKeyInput" class="form-control" placeholder="sk-or-v1-..." />
-                <button id="btnToggleKeyVis" class="btn-icon" title="Toggle visibility">👁️</button>
+            <!-- Panel 1: API Provider & Credentials -->
+            <div id="setPanelProvider" class="settings-panel active card">
+              <div class="card-header">
+                <h3>🔑 API Provider & Credentials</h3>
+                <p class="subtitle">Select default provider and configure cloud API keys or local endpoints.</p>
               </div>
-              <small class="form-hint">Used for cloud models (Gemini, Llama 3.3, Claude, DeepSeek).</small>
-            </div>
-
-            <div class="form-group" id="ollamaUrlGroup" style="display: none;">
-              <label for="ollamaUrlInput">Ollama Base URL</label>
-              <input type="text" id="ollamaUrlInput" class="form-control" value="http://localhost:11434" />
-              <small class="form-hint">Address of your locally running Ollama instance.</small>
-            </div>
-
-            <button id="btnSaveCredentials" class="btn-primary" style="margin-top: 0.5rem;">💾 Save Provider & Credentials</button>
-          </div>
-
-          <!-- Card 2: Model Management & Adding Form -->
-          <div class="card settings-card col-span-2">
-            <div class="card-header">
-              <h3>🤖 Model Registry & Model Management</h3>
-              <p class="subtitle">Add new LLM/Embedding models, set active targets, and ping endpoint connectivity.</p>
-            </div>
-
-            <!-- Active Selection Row -->
-            <div class="active-models-bar">
-              <div class="form-group flex-1">
-                <label for="activeLlmSelect">Active LLM Model</label>
-                <select id="activeLlmSelect" class="form-control"></select>
+              
+              <div class="form-group">
+                <label for="providerSelect">Default API Provider</label>
+                <select id="providerSelect" class="form-control">
+                  <option value="openrouter">OpenRouter API</option>
+                  <option value="ollama">Local Ollama</option>
+                </select>
               </div>
-              <div class="form-group flex-1">
-                <label for="activeEmbeddingSelect">Active Embedding Model</label>
-                <select id="activeEmbeddingSelect" class="form-control"></select>
+
+              <div class="form-group" id="apiKeyGroup">
+                <label for="apiKeyInput">OpenRouter API Key</label>
+                <div class="input-with-btn">
+                  <input type="password" id="apiKeyInput" class="form-control" placeholder="sk-or-v1-..." />
+                  <button id="btnToggleKeyVis" class="btn-icon" title="Toggle visibility">👁️</button>
+                </div>
+                <small class="form-hint">Used for cloud models (Gemini, Llama 3.3, Claude, DeepSeek).</small>
               </div>
+
+              <div class="form-group" id="ollamaUrlGroup" style="display: none;">
+                <label for="ollamaUrlInput">Ollama Base URL</label>
+                <input type="text" id="ollamaUrlInput" class="form-control" value="http://localhost:11434" />
+                <small class="form-hint">Address of your locally running Ollama instance.</small>
+              </div>
+
+              <button id="btnSaveCredentials" class="btn-primary" style="margin-top: 0.5rem;">💾 Save Provider & Credentials</button>
             </div>
 
-            <!-- Add Custom Model Form -->
-            <div class="add-model-box">
-              <h4 style="color: var(--accent-cyan); margin-bottom: 0.75rem;">➕ Add Custom Model</h4>
-              <div class="add-model-grid">
-                <div class="form-group">
-                  <label for="newModelId">Model ID / Name</label>
-                  <input type="text" id="newModelId" class="form-control" placeholder="e.g. anthropic/claude-3.5-sonnet" />
+            <!-- Panel 2: Model Management & Ping -->
+            <div id="setPanelModels" class="settings-panel card">
+              <div class="card-header">
+                <h3>🤖 Model Registry & Management</h3>
+                <p class="subtitle">Register custom LLM & Embedding models, set active targets, and ping connectivity.</p>
+              </div>
+
+              <!-- Active Selection Row -->
+              <div class="active-models-bar">
+                <div class="form-group flex-1">
+                  <label for="activeLlmSelect">Active LLM Model</label>
+                  <select id="activeLlmSelect" class="form-control"></select>
                 </div>
-                <div class="form-group">
-                  <label for="newModelName">Display Label</label>
-                  <input type="text" id="newModelName" class="form-control" placeholder="e.g. Claude 3.5 Sonnet" />
-                </div>
-                <div class="form-group">
-                  <label for="newModelProvider">Provider</label>
-                  <select id="newModelProvider" class="form-control">
-                    <option value="openrouter">OpenRouter</option>
-                    <option value="ollama">Ollama</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="newModelType">Model Type</label>
-                  <select id="newModelType" class="form-control">
-                    <option value="llm">LLM (Chat/Reasoning)</option>
-                    <option value="embedding">Embedding</option>
-                  </select>
+                <div class="form-group flex-1">
+                  <label for="activeEmbeddingSelect">Active Embedding Model</label>
+                  <select id="activeEmbeddingSelect" class="form-control"></select>
                 </div>
               </div>
-              <div style="display: flex; gap: 0.75rem; margin-top: 0.75rem;">
-                <button id="btnAddModel" class="btn-primary">➕ Register Model</button>
-                <button id="btnPingNewModel" class="btn-secondary">📡 Ping Test Model</button>
+
+              <!-- Add Custom Model Form -->
+              <div class="add-model-box">
+                <h4 style="color: var(--accent-cyan); margin-bottom: 0.75rem;">➕ Add Custom Model</h4>
+                <div class="add-model-grid">
+                  <div class="form-group">
+                    <label for="newModelId">Model ID / Name</label>
+                    <input type="text" id="newModelId" class="form-control" placeholder="e.g. anthropic/claude-3.5-sonnet" />
+                  </div>
+                  <div class="form-group">
+                    <label for="newModelName">Display Label</label>
+                    <input type="text" id="newModelName" class="form-control" placeholder="e.g. Claude 3.5 Sonnet" />
+                  </div>
+                  <div class="form-group">
+                    <label for="newModelProvider">Provider</label>
+                    <select id="newModelProvider" class="form-control">
+                      <option value="openrouter">OpenRouter</option>
+                      <option value="ollama">Ollama</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="newModelType">Model Type</label>
+                    <select id="newModelType" class="form-control">
+                      <option value="llm">LLM (Chat/Reasoning)</option>
+                      <option value="embedding">Embedding</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 0.75rem; margin-top: 0.75rem;">
+                  <button id="btnAddModel" class="btn-primary">➕ Register Model</button>
+                  <button id="btnPingNewModel" class="btn-secondary">📡 Ping Test Model</button>
+                </div>
+                <div id="newModelPingStatus" class="ping-result-box" style="display:none;"></div>
               </div>
-              <div id="newModelPingStatus" class="ping-result-box" style="display:none;"></div>
-            </div>
 
-            <!-- Models List Table -->
-            <div style="margin-top: 1.25rem;">
-              <h4 style="margin-bottom: 0.75rem;">Registered Models & Ping Diagnostics</h4>
-              <div class="models-table-container">
-                <table class="models-table">
-                  <thead>
-                    <tr>
-                      <th>Display Name & Model ID</th>
-                      <th>Provider</th>
-                      <th>Type</th>
-                      <th>Status & Ping</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="modelsTableBody">
-                    <!-- Populated dynamically -->
-                  </tbody>
-                </table>
+              <!-- Models List Table -->
+              <div style="margin-top: 1.25rem;">
+                <h4 style="margin-bottom: 0.75rem;">Registered Models & Ping Diagnostics</h4>
+                <div class="models-table-container">
+                  <table class="models-table">
+                    <thead>
+                      <tr>
+                        <th>Display Name & Model ID</th>
+                        <th>Provider</th>
+                        <th>Type</th>
+                        <th>Status & Ping</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="modelsTableBody">
+                      <!-- Populated dynamically -->
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
-          </div>
+            <!-- Panel 3: Retrieval Parameters -->
+            <div id="setPanelRetrieval" class="settings-panel card">
+              <div class="card-header">
+                <h3>🎛️ Retrieval & Pacing Tuning</h3>
+                <p class="subtitle">Fine-tune hybrid weighting (α), MMR diversity (λ), and context candidate depth.</p>
+              </div>
 
-          <!-- Card 3: Retrieval Parameters -->
-          <div class="card settings-card">
-            <div class="card-header">
-              <h3>🎛️ Retrieval & Pacing Tuning</h3>
+              <div class="slider-group">
+                <label for="hybridAlpha">Hybrid Weight α (Dense vs BM25): <span id="alphaVal" class="slider-val">0.5</span></label>
+                <input type="range" id="hybridAlpha" min="0" max="1" step="0.05" value="0.5">
+                <div class="slider-legend"><span>0.0 (BM25 Only)</span><span>1.0 (Dense Only)</span></div>
+              </div>
+
+              <div class="slider-group">
+                <label for="mmrLambda">MMR Diversity λ (Relevance vs Diversity): <span id="lambdaVal" class="slider-val">0.5</span></label>
+                <input type="range" id="mmrLambda" min="0" max="1" step="0.05" value="0.5">
+                <div class="slider-legend"><span>0.0 (Max Diversity)</span><span>1.0 (Max Relevance)</span></div>
+              </div>
+
+              <div class="slider-group">
+                <label for="topKPool">Top-K Candidate Pool: <span id="topkVal" class="slider-val">20</span></label>
+                <input type="range" id="topKPool" min="5" max="100" step="5" value="20">
+              </div>
+
+              <div class="slider-group">
+                <label for="topNContext">Top-N LLM Final Context: <span id="topnVal" class="slider-val">5</span></label>
+                <input type="range" id="topNContext" min="1" max="15" step="1" value="5">
+              </div>
             </div>
 
-            <div class="slider-group">
-              <label for="hybridAlpha">Hybrid Weight α (Dense vs BM25): <span id="alphaVal" class="slider-val">0.5</span></label>
-              <input type="range" id="hybridAlpha" min="0" max="1" step="0.05" value="0.5">
-              <div class="slider-legend"><span>0.0 (BM25 Only)</span><span>1.0 (Dense Only)</span></div>
+            <!-- Panel 4: Toggles & Data Controls -->
+            <div id="setPanelMaintenance" class="settings-panel card">
+              <div class="card-header">
+                <h3>⚡ RAG Pipeline Toggles & Maintenance</h3>
+                <p class="subtitle">Enable optional AI modules and clear vector databases or credentials.</p>
+              </div>
+
+              <div class="toggle-list">
+                <div class="toggle-row">
+                  <div>
+                    <strong>Cross-Encoder Reranker</strong>
+                    <div class="toggle-desc">Reranks retrieved candidate chunks using deep semantic cross-encoders.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="toggleReranker"><span class="slider"></span></label>
+                </div>
+
+                <div class="toggle-row">
+                  <div>
+                    <strong>HyDE Generation</strong>
+                    <div class="toggle-desc">Generates hypothetical document embeddings prior to vector retrieval.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="toggleHyde"><span class="slider"></span></label>
+                </div>
+
+                <div class="toggle-row">
+                  <div>
+                    <strong>Strict Evidence Enforcement</strong>
+                    <div class="toggle-desc">Refuses to answer if retrieved chunks do not contain sufficient evidence.</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="toggleStrict" checked><span class="slider"></span></label>
+                </div>
+              </div>
+
+              <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--bg-card-border);">
+                <h4 style="color: #ff5555; margin-bottom: 0.5rem;">⚠️ Danger Zone</h4>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                  <button id="btnClearIndex" class="btn-danger">🗑️ Clear Vector & BM25 Corpus Index</button>
+                  <button id="btnResetConfig" class="btn-secondary" style="color: #ffaa00; border-color: rgba(255, 170, 0, 0.4);">🔑 Clear Credentials & Reset Config JSON</button>
+                </div>
+              </div>
             </div>
 
-            <div class="slider-group">
-              <label for="mmrLambda">MMR Diversity λ (Relevance vs Diversity): <span id="lambdaVal" class="slider-val">0.5</span></label>
-              <input type="range" id="mmrLambda" min="0" max="1" step="0.05" value="0.5">
-              <div class="slider-legend"><span>0.0 (Max Diversity)</span><span>1.0 (Max Relevance)</span></div>
-            </div>
-
-            <div class="slider-group">
-              <label for="topKPool">Top-K Candidate Pool: <span id="topkVal" class="slider-val">20</span></label>
-              <input type="range" id="topKPool" min="5" max="100" step="5" value="20">
-            </div>
-
-            <div class="slider-group">
-              <label for="topNContext">Top-N LLM Final Context: <span id="topnVal" class="slider-val">5</span></label>
-              <input type="range" id="topNContext" min="1" max="15" step="1" value="5">
-            </div>
-          </div>
-
-          <!-- Card 4: Toggles & Data Controls -->
-          <div class="card settings-card">
-            <div class="card-header">
-              <h3>⚡ RAG Pipeline Toggles & Maintenance</h3>
-            </div>
-
-            <div class="toggle-list">
-              <div class="toggle-row">
+            <!-- Panel 5: About Platform & Author Credits -->
+            <div id="setPanelAbout" class="settings-panel card" style="background: linear-gradient(135deg, rgba(18, 26, 44, 0.8), rgba(0, 242, 254, 0.05)); border-color: rgba(0, 242, 254, 0.2);">
+              <div class="card-header" style="margin-bottom: 0.75rem;">
+                <h3 style="color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem;">
+                  ℹ️ About Platform & Author Credits
+                </h3>
+              </div>
+              
+              <div class="about-grid">
                 <div>
-                  <strong>Cross-Encoder Reranker</strong>
-                  <div class="toggle-desc">Reranks retrieved candidate chunks using deep semantic cross-encoders.</div>
+                  <h4 style="color: var(--text-main); font-size: 1rem; margin-bottom: 0.3rem;">👤 Author & Lead Architect</h4>
+                  <div style="font-size: 1.25rem; font-weight: 800; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                    Allen MT Maliyil
+                  </div>
+                  <div style="margin-top: 0.3rem; font-size: 0.85rem; color: var(--text-muted);">
+                    GitHub Profile: <a href="https://github.com/DarkWolfHunter007" target="_blank" style="color: var(--accent-cyan); text-decoration: none; font-weight: 700;">@DarkWolfHunter007</a>
+                  </div>
+                  <div style="margin-top: 0.8rem;">
+                    <a href="https://github.com/DarkWolfHunter007/Ultimate-RAG-System" target="_blank" class="btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none;">
+                      🌐 Repository: DarkWolfHunter007/Ultimate-RAG-System
+                    </a>
+                  </div>
                 </div>
-                <label class="switch"><input type="checkbox" id="toggleReranker"><span class="slider"></span></label>
-              </div>
 
-              <div class="toggle-row">
-                <div>
-                  <strong>HyDE Generation</strong>
-                  <div class="toggle-desc">Generates hypothetical document embeddings prior to vector retrieval.</div>
+                <div class="about-desc">
+                  <strong style="color: var(--text-main);">Ultimate-RAG-System v1.0.0</strong> is an enterprise-grade self-adapting conversational RAG platform featuring hybrid dense/sparse vector retrieval, MMR diversity, neural cross-encoder reranking, model diagnostics, and microsecond telemetry waterfalls.
                 </div>
-                <label class="switch"><input type="checkbox" id="toggleHyde"><span class="slider"></span></label>
-              </div>
-
-              <div class="toggle-row">
-                <div>
-                  <strong>Strict Evidence Enforcement</strong>
-                  <div class="toggle-desc">Refuses to answer if retrieved chunks do not contain sufficient evidence.</div>
-                </div>
-                <label class="switch"><input type="checkbox" id="toggleStrict" checked><span class="slider"></span></label>
               </div>
             </div>
 
-            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--bg-card-border);">
-              <h4 style="color: #ff5555; margin-bottom: 0.5rem;">⚠️ Danger Zone</h4>
-              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                <button id="btnClearIndex" class="btn-danger">🗑️ Clear Vector & BM25 Corpus Index</button>
-                <button id="btnResetConfig" class="btn-secondary" style="color: #ffaa00; border-color: rgba(255, 170, 0, 0.4);">🔑 Clear Credentials & Reset Config JSON</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 5: About Platform & Author Credits -->
-          <div class="card settings-card col-span-2" style="background: linear-gradient(135deg, rgba(18, 26, 44, 0.8), rgba(0, 242, 254, 0.05)); border-color: rgba(0, 242, 254, 0.2);">
-            <div class="card-header" style="margin-bottom: 0.75rem;">
-              <h3 style="color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem;">
-                ℹ️ About Platform & Author Credits
-              </h3>
-            </div>
-            
-            <div class="about-grid">
-              <div>
-                <h4 style="color: var(--text-main); font-size: 1rem; margin-bottom: 0.3rem;">👤 Author & Lead Architect</h4>
-                <div style="font-size: 1.15rem; font-weight: 800; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                  Allen MT Maliyil
-                </div>
-                <div style="margin-top: 0.3rem; font-size: 0.85rem; color: var(--text-muted);">
-                  GitHub Profile: <a href="https://github.com/DarkWolfHunter007" target="_blank" style="color: var(--accent-cyan); text-decoration: none; font-weight: 700;">@DarkWolfHunter007</a>
-                </div>
-                <div style="margin-top: 0.6rem;">
-                  <a href="https://github.com/DarkWolfHunter007/Ultimate-RAG-System" target="_blank" class="btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none;">
-                    🌐 Repository: DarkWolfHunter007/Ultimate-RAG-System
-                  </a>
-                </div>
-              </div>
-
-              <div class="about-desc">
-                <strong style="color: var(--text-main);">Ultimate-RAG-System v1.0.0</strong> is an enterprise-grade self-adapting conversational RAG platform featuring hybrid dense/sparse vector retrieval, MMR diversity, neural cross-encoder reranking, model diagnostics, and microsecond telemetry waterfalls.
-              </div>
-            </div>
-          </div>
+          </main>
 
         </div>
       </div>
@@ -334,6 +360,6 @@
 
   </div>
 
-  <script src="/static/app.js?v=14.0"></script>
+  <script src="/static/app.js?v=15.0"></script>
 </body>
 </html>

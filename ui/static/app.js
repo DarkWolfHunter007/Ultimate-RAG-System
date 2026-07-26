@@ -95,6 +95,20 @@ document.addEventListener("DOMContentLoaded", () => {
   if (tabSettings) tabSettings.addEventListener("click", () => switchTab("settings"));
   if (btnJumpSettings) btnJumpSettings.addEventListener("click", () => switchTab("settings"));
 
+  // Settings Internal Sidebar Navigation
+  document.querySelectorAll(".settings-nav-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.getAttribute("data-target");
+      
+      document.querySelectorAll(".settings-nav-item").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".settings-panel").forEach(p => p.classList.remove("active"));
+
+      btn.classList.add("active");
+      const targetPanel = document.getElementById(targetId);
+      if (targetPanel) targetPanel.classList.add("active");
+    });
+  });
+
   // Toast Helper
   function showToast(msg, type = "info") {
     const container = document.getElementById("toastContainer");
