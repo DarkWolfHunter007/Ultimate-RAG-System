@@ -91,21 +91,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function openSettingsPanel(panelId) {
+    switchTab("settings");
+    document.querySelectorAll(".settings-nav-item").forEach(b => {
+      b.classList.toggle("active", b.getAttribute("data-target") === panelId);
+    });
+    document.querySelectorAll(".settings-panel").forEach(p => {
+      p.classList.toggle("active", p.id === panelId);
+    });
+  }
+
   if (tabWorkspace) tabWorkspace.addEventListener("click", () => switchTab("workspace"));
   if (tabSettings) tabSettings.addEventListener("click", () => switchTab("settings"));
-  if (btnJumpSettings) btnJumpSettings.addEventListener("click", () => switchTab("settings"));
+  if (btnJumpSettings) btnJumpSettings.addEventListener("click", () => openSettingsPanel("setPanelModels"));
 
   // Settings Internal Sidebar Navigation
   document.querySelectorAll(".settings-nav-item").forEach(btn => {
     btn.addEventListener("click", () => {
-      const targetId = btn.getAttribute("data-target");
-      
-      document.querySelectorAll(".settings-nav-item").forEach(b => b.classList.remove("active"));
-      document.querySelectorAll(".settings-panel").forEach(p => p.classList.remove("active"));
-
-      btn.classList.add("active");
-      const targetPanel = document.getElementById(targetId);
-      if (targetPanel) targetPanel.classList.add("active");
+      openSettingsPanel(btn.getAttribute("data-target"));
     });
   });
 
