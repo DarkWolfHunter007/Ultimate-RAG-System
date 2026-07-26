@@ -108,34 +108,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Sidebar Collapse/Expand Toggle
   const btnCollapseSidebar = document.getElementById("btnCollapseSidebar");
-  const btnExpandSidebar = document.getElementById("btnExpandSidebar");
+  const btnToggleSidebarHeader = document.getElementById("btnToggleSidebarHeader");
   const chatLayout = document.querySelector(".chat-workspace-layout");
 
   if (btnCollapseSidebar && chatLayout) {
     btnCollapseSidebar.addEventListener("click", () => {
       chatLayout.classList.add("sidebar-collapsed");
-      if (btnExpandSidebar) btnExpandSidebar.style.display = "inline-flex";
     });
   }
 
-  if (btnExpandSidebar && chatLayout) {
-    btnExpandSidebar.addEventListener("click", () => {
-      chatLayout.classList.remove("sidebar-collapsed");
-      btnExpandSidebar.style.display = "none";
+  if (btnToggleSidebarHeader && chatLayout) {
+    btnToggleSidebarHeader.addEventListener("click", () => {
+      chatLayout.classList.toggle("sidebar-collapsed");
     });
   }
 
   // Scroll to bottom button handler
   const btnScrollBottom = document.getElementById("btnScrollBottom");
   if (chatThread && btnScrollBottom) {
-    chatThread.addEventListener("scroll", () => {
+    const checkScroll = () => {
       const distanceToBottom = chatThread.scrollHeight - chatThread.scrollTop - chatThread.clientHeight;
-      if (distanceToBottom > 120) {
+      if (distanceToBottom > 60) {
         btnScrollBottom.classList.add("visible");
       } else {
         btnScrollBottom.classList.remove("visible");
       }
-    });
+    };
+
+    chatThread.addEventListener("scroll", checkScroll);
+    window.addEventListener("resize", checkScroll);
 
     btnScrollBottom.addEventListener("click", () => {
       chatThread.scrollTo({
@@ -340,6 +341,23 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ----------------------------------------------------
+  // Robust Scroll-to-Bottom Helper
+  // ----------------------------------------------------
+  function scrollToBottom(smooth = false) {
+    if (!chatThread) return;
+    const doScroll = () => {
+      chatThread.scrollTo({
+        top: chatThread.scrollHeight,
+        behavior: smooth ? "smooth" : "auto"
+      });
+    };
+    doScroll();
+    requestAnimationFrame(doScroll);
+    setTimeout(doScroll, 50);
+    setTimeout(doScroll, 200);
+  }
+
+  // ----------------------------------------------------
   // Pretty Chat Message Thread Rendering
   // ----------------------------------------------------
   function renderChatMessages(messages) {
@@ -356,13 +374,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     messages.forEach(m => {
-      appendMessageToThread(m);
+      appendMessageToThread(m, false);
     });
 
-    chatThread.scrollTop = chatThread.scrollHeight;
+    scrollToBottom(false);
   }
 
-  function appendMessageToThread(m) {
+  function appendMessageToThread(m, shouldScroll = true) {
     // Remove welcome state if present
     const welcome = chatThread.querySelector(".chat-welcome");
     if (welcome) welcome.remove();
@@ -382,7 +400,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const faith = (m.metrics?.faithfulness || 0.95).toFixed(2);
         const prec = (m.metrics?.context_precision || 0.90).toFixed(2);
         const rec = (m.metrics?.context_recall || 0.88).toFixed(2);
-        
+
+        const modelName = m.model || (currentConfig?.llm_model || 'Gemini 2.0 Flash');
+        const providerName = (m.provider || currentConfig?.provider || 'openrouter').toUpperCase();
+        const modeStr = currentConfig ? `Hybrid (α=${currentConfig.hybrid_alpha})` : 'Hybrid';
+
         let waterfallSpans = "";
         (m.telemetry?.spans || []).forEach(s => {
           waterfallSpans += `<div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);"><span>${s.name}</span><span>${s.duration_ms} ms</span></div>`;
@@ -395,12 +417,16 @@ document.addEventListener("DOMContentLoaded", () => {
               <span>▼</span>
             </div>
             <div class="drawer-body">
+              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--bg-card-border); padding-bottom: 0.5rem; margin-bottom: 0.75rem; font-size: 0.78rem; flex-wrap: wrap; gap: 0.4rem;">
+                <span style="color:var(--accent-cyan); font-weight:700;">🤖 Model: ${escapeHtml(modelName)}</span>
+                <span style="color:var(--text-muted);">Provider: <strong style="color:var(--text-main);">${escapeHtml(providerName)}</strong> | Mode: <strong style="color:var(--text-main);">${modeStr}</strong></span>
+              </div>
               <div class="metrics-grid">
                 <div class="metric-box"><div class="metric-val">${faith}</div><div class="metric-label">Faithfulness</div></div>
                 <div class="metric-box"><div class="metric-val">${prec}</div><div class="metric-label">Precision</div></div>
                 <div class="metric-box"><div class="metric-val">${rec}</div><div class="metric-label">Recall</div></div>
               </div>
-              ${waterfallSpans ? `<div style="margin-top:0.5rem;">${waterfallSpans}</div>` : ''}
+              ${waterfallSpans ? `<div style="margin-top:0.5rem; padding-top:0.4rem; border-top:1px dashed var(--bg-card-border);">${waterfallSpans}</div>` : ''}
             </div>
           </div>
         `;
@@ -471,7 +497,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     chatThread.appendChild(msgWrapper);
-    chatThread.scrollTop = chatThread.scrollHeight;
+    if (shouldScroll) scrollToBottom(true);
   }
 
   function formatMarkdown(text) {
@@ -594,11 +620,11 @@ document.addEventListener("DOMContentLoaded", () => {
     populateModelSelectors(cfg);
     renderModelsTable(cfg.custom_models || []);
 
-    summaryProvider.innerText = cfg.provider.toUpperCase();
-    summaryLLM.innerText = cfg.llm_model;
-    summaryEmbedding.innerText = cfg.embedding_model;
-    summaryMode.innerText = `Hybrid (α=${cfg.hybrid_alpha})`;
-    activeModelBadge.innerText = `Model: ${cfg.llm_model}`;
+    if (summaryProvider) summaryProvider.innerText = cfg.provider.toUpperCase();
+    if (summaryLLM) summaryLLM.innerText = cfg.llm_model;
+    if (summaryEmbedding) summaryEmbedding.innerText = cfg.embedding_model;
+    if (summaryMode) summaryMode.innerText = `Hybrid (α=${cfg.hybrid_alpha})`;
+    if (activeModelBadge) activeModelBadge.innerText = `Model: ${cfg.llm_model}`;
   }
 
   function updateProviderVisibility() {

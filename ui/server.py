@@ -50,7 +50,6 @@ class ConfigUpdateRequest(BaseModel):
     top_n_final: Optional[int] = None
     enable_reranker: Optional[bool] = None
     enable_hyde: Optional[bool] = None
-    enable_graph_rag: Optional[bool] = None
     strict_evidence: Optional[bool] = None
     confirm_deletion: Optional[bool] = None
 

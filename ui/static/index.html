@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ultimate RAG System - Conversational AI & Settings</title>
-  <link rel="stylesheet" href="/static/style.css?v=25.0">
+  <link rel="stylesheet" href="/static/style.css?v=26.0">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Markdown Parser for Pretty Formatting -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -16,8 +16,13 @@
 
   <!-- Header -->
   <header class="header">
-    <div class="logo">
-      <span>🚀</span> Ultimate-RAG-System
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <button id="btnToggleSidebarHeader" class="btn-icon-square" title="Toggle Sidebar" aria-label="Toggle Sidebar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+      </button>
+      <div class="logo">
+        <span>🚀</span> Ultimate-RAG-System
+      </div>
     </div>
     
     <!-- Top Navigation Tabs -->
@@ -40,9 +45,8 @@
         
         <!-- Left Sidebar (Uploads, Document List & Chat Sessions) -->
         <aside id="chatSidebar" class="chat-sidebar">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
-            <button id="btnNewChat" class="btn-primary" style="flex: 1; margin-right: 0.5rem;">➕ New Chat Session</button>
-            <button id="btnCollapseSidebar" class="btn-icon-square" title="Collapse Sidebar (Wide View)">«</button>
+          <div style="margin-bottom: 0.25rem;">
+            <button id="btnNewChat" class="btn-primary" style="width: 100%;">➕ New Chat Session</button>
           </div>
 
           <!-- Document Upload Dropzone -->
@@ -75,28 +79,6 @@
 
         <!-- Right Main Chat Area -->
         <main class="chat-main-area">
-          
-          <!-- Active Config Summary Banner -->
-          <div class="config-banner">
-            <button id="btnExpandSidebar" class="btn-icon-square" style="display:none;" title="Expand Sidebar">» Sidebar</button>
-            <div class="banner-item">
-              <span class="label">Provider:</span>
-              <span id="summaryProvider" class="val">OpenRouter</span>
-            </div>
-            <div class="banner-item">
-              <span class="label">Active LLM:</span>
-              <span id="summaryLLM" class="val">Gemini 2.0 Flash</span>
-            </div>
-            <div class="banner-item">
-              <span class="label">Embedding:</span>
-              <span id="summaryEmbedding" class="val">Nemotron Embed</span>
-            </div>
-            <div class="banner-item">
-              <span class="label">Retrieval Mode:</span>
-              <span id="summaryMode" class="val">Hybrid (α=0.5)</span>
-            </div>
-            <button id="btnJumpSettings" class="btn-secondary btn-sm">⚙️ Configure Models</button>
-          </div>
 
           <!-- Chat Messages Thread -->
           <div id="chatThread" class="chat-thread">
@@ -108,7 +90,9 @@
           </div>
 
           <!-- Bottom Sticky Chat Input Bar -->
-          <button id="btnScrollBottom" class="scroll-bottom-btn" title="Scroll to bottom">↓</button>
+          <button id="btnScrollBottom" class="scroll-bottom-btn" title="Scroll to bottom" aria-label="Scroll to bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+          </button>
           <div class="chat-input-bar">
             <textarea id="queryInput" class="chat-textarea" rows="1" placeholder="Ask anything about your ingested documents... (Press Enter to send, Shift+Enter for new line)"></textarea>
             <button id="btnSearch" class="btn-primary btn-send">⚡ Send</button>
@@ -125,7 +109,7 @@
         
         <div class="settings-header">
           <h2>⚙️ System Settings & Model Management</h2>
-          <p>Configure API providers, add custom models, test model latency & ping connectivity, and adjust retrieval algorithms.</p>
+          <p class="subtitle">Configure AI models, API keys, hybrid search parameters, and system maintenance.</p>
         </div>
 
         <div class="settings-split-layout">
@@ -179,10 +163,10 @@
               <div class="form-group" id="ollamaUrlGroup" style="display: none;">
                 <label for="ollamaUrlInput">Ollama Base URL</label>
                 <input type="text" id="ollamaUrlInput" class="form-control" value="http://localhost:11434" />
-                <small class="form-hint">Address of your locally running Ollama instance.</small>
+                <small class="form-hint">Default local Ollama instance address.</small>
               </div>
 
-              <button id="btnSaveCredentials" class="btn-primary" style="margin-top: 0.5rem;">💾 Save Provider & Credentials</button>
+              <button id="btnSaveCredentials" class="btn-primary">💾 Save Credentials</button>
             </div>
 
             <!-- Panel 2: Model Management & Ping -->
@@ -288,6 +272,7 @@
                 <label for="topNContext">Top-N LLM Final Context: <span id="topnVal" class="slider-val">5</span></label>
                 <input type="range" id="topNContext" min="1" max="15" step="1" value="5">
               </div>
+              <button id="btnSaveRetrieval" class="btn-primary" style="margin-top: 1rem;">💾 Save Parameters</button>
             </div>
 
             <!-- Panel 4: Toggles & Data Controls -->

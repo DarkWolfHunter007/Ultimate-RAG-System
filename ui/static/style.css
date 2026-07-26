@@ -23,14 +23,19 @@
   padding: 0;
 }
 
+html, body {
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 body {
   background: radial-gradient(circle at 15% 15%, #131b2e 0%, #080b12 100%);
   color: var(--text-main);
   font-family: var(--font-family);
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
 }
 
 /* Toast Container */
@@ -67,13 +72,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.8rem 2rem;
+  padding: 0.6rem 1.5rem;
+  height: 60px;
+  flex-shrink: 0;
   background: rgba(11, 15, 25, 0.85);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--bg-card-border);
-  position: sticky;
-  top: 0;
   z-index: 100;
+  box-sizing: border-box;
 }
 
 .logo {
@@ -163,22 +169,26 @@ body {
 /* Main Content Views */
 .main-content {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .view-section {
   display: none;
   flex: 1;
-  padding: 1.5rem 2rem;
-  max-width: 1600px;
-  margin: 0 auto;
+  min-height: 0;
+  padding: 1rem;
   width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .view-section.active {
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 /* Chat Workspace Layout - ChatGPT Style */
@@ -187,7 +197,8 @@ body {
   flex-direction: row;
   gap: 1rem;
   flex: 1;
-  height: calc(100vh - 85px);
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -210,9 +221,34 @@ body {
 }
 
 .chat-workspace-layout.sidebar-collapsed .chat-sidebar {
-  margin-left: -296px;
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
   opacity: 0;
+  overflow: hidden;
   pointer-events: none;
+}
+
+.btn-icon-square {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--bg-card-border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-square:hover {
+  background: rgba(0, 242, 254, 0.15);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
 }
 
 /* Chat Main Area (Centered Content Column) */
@@ -319,8 +355,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  max-height: 180px;
+  max-height: 130px;
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .doc-item {
@@ -370,7 +407,9 @@ body {
   flex-direction: column;
   gap: 0.4rem;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  padding-right: 4px;
 }
 
 .chat-item {
@@ -1042,21 +1081,20 @@ input:checked + .slider:before { transform: translateX(20px); }
 /* Floating Scroll to Bottom Button */
 .scroll-bottom-btn {
   position: absolute;
-  bottom: 85px;
+  bottom: 90px;
   left: 50%;
   transform: translateX(-50%);
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background: var(--bg-card);
-  border: 1px solid var(--accent-cyan);
+  background: #1e293b;
+  border: 1px solid rgba(0, 242, 254, 0.4);
   color: var(--accent-cyan);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease, transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
@@ -1074,4 +1112,27 @@ input:checked + .slider:before { transform: translateX(20px); }
   border-color: var(--accent-blue);
   box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
   transform: translateX(-50%) scale(1.1);
+}
+
+/* Sleek Thin Scrollbars (ChatGPT Style) */
+.chat-sidebar::-webkit-scrollbar,
+.chats-list::-webkit-scrollbar,
+.documents-list::-webkit-scrollbar,
+.chat-thread::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-sidebar::-webkit-scrollbar-thumb,
+.chats-list::-webkit-scrollbar-thumb,
+.documents-list::-webkit-scrollbar-thumb,
+.chat-thread::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.chat-sidebar::-webkit-scrollbar-thumb:hover,
+.chats-list::-webkit-scrollbar-thumb:hover,
+.documents-list::-webkit-scrollbar-thumb:hover,
+.chat-thread::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-cyan);
 }
