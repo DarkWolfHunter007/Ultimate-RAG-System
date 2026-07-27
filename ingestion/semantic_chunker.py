@@ -187,8 +187,6 @@ class SemanticChunker:
                 global_parent_id += 1
 
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"=== [SEMANTIC CHUNKER END] Generated {len(all_chunks)} chunk(s) across {global_parent_id} parent block(s) ===")
-            for c in all_chunks[:3]:
-                logger.debug(f"Chunk ID: {c['chunk_id']} | Heading: '{c['metadata'].get('heading')}' | Snippet: {c['content'][:100]}...")
+            logger.debug(f"[SEMANTIC CHUNKER 200 OK] Generated {len(all_chunks)} chunks across {global_parent_id} parent block(s) for {len(parsed_pages)} page(s)")
 
         return all_chunks

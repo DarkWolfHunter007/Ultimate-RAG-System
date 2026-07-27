@@ -35,10 +35,7 @@ class ModelRouter:
         messages.append({"role": "user", "content": prompt})
 
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"\n=== [LLM REQUEST] Provider: {cfg.provider} | Model: {cfg.llm_model} | Temp: {temperature} ===")
-            if system_prompt:
-                logger.debug(f"SYSTEM PROMPT:\n{system_prompt}")
-            logger.debug(f"USER PROMPT & CONTEXT:\n{prompt}\n==================================================")
+            logger.debug(f"[LLM REQUEST] Provider: {cfg.provider} | Model: {cfg.llm_model} | Prompt: {len(prompt)} chars | System: {bool(system_prompt)}")
 
         if cfg.provider == "ollama":
             res = await self._call_ollama_chat(cfg, messages, temperature)
@@ -46,8 +43,8 @@ class ModelRouter:
             res = await self._call_openrouter_chat(cfg, messages, temperature, max_tokens)
 
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"\n=== [LLM RESPONSE] Model: {res.get('model')} ===")
-            logger.debug(f"CONTENT:\n{res.get('content')}\n==================================================")
+            content_len = len(res.get("content", ""))
+            logger.debug(f"[LLM RESPONSE 200 OK] Model: {res.get('model', cfg.llm_model)} | Output: {content_len} chars")
 
         return res
 
