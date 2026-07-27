@@ -32,7 +32,8 @@ if __name__ == "__main__":
         host=args.host,
         port=args.port,
         reload=True,
-        reload_excludes=["data/*", "*.json", "*.sqlite3*"],
+        reload_dirs=["core", "ingestion", "retrieval", "analytics", "ui"],
+        reload_excludes=["data/*", "data/**", "*.sqlite3*", "*journal*", "*.json"],
         log_level="debug" if args.debug else "info"
     )
 
