@@ -32,6 +32,10 @@ class VectorIndexer:
         if not chunks:
             return
         
+        if logger.isEnabledFor(logging.DEBUG):
+            emb_info = f"with {len(embeddings)} pre-computed embeddings" if embeddings else "using default ChromaDB embeddings"
+            logger.debug(f"[ChromaDB] Indexing {len(chunks)} chunk(s) {emb_info} into collection '{self.collection_name}'...")
+
         ids = [c["chunk_id"] for c in chunks]
         documents = [c["content"] for c in chunks]
         metadatas = [
@@ -73,6 +77,10 @@ class VectorIndexer:
         if self.count() == 0:
             return []
 
+        if logger.isEnabledFor(logging.DEBUG):
+            emb_status = f"embedding vector (dim={len(query_embedding)})" if query_embedding else "text query"
+            logger.debug(f"[ChromaDB Vector Search] Query: '{query_text}' | TopK: {top_k} | Search mode: {emb_status}")
+
         results = None
         if query_embedding:
             try:
@@ -113,7 +121,6 @@ class VectorIndexer:
             dists = results["distances"][0]
 
             for i in range(len(ids)):
-                # Convert cosine distance to similarity score
                 similarity = 1.0 - max(0.0, float(dists[i]))
                 output.append({
                     "chunk_id": ids[i],
@@ -121,6 +128,9 @@ class VectorIndexer:
                     "metadata": metas[i],
                     "score": round(similarity, 4)
                 })
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[ChromaDB Vector Search] Returned {len(output)} vector hit(s). Top score: {output[0]['score'] if output else 'N/A'}")
 
         return output
 

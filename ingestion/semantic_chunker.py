@@ -1,6 +1,9 @@
 import re
 import uuid
+import logging
 from typing import List, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 class SemanticChunker:
     """Sentence & Heading Aware Hierarchical Parent-Child Chunker.
@@ -79,6 +82,9 @@ class SemanticChunker:
         all_chunks = []
         global_parent_id = 0
 
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"\n=== [SEMANTIC CHUNKER START] Processing {len(parsed_pages)} document page(s) ===")
+
         for page in parsed_pages:
             content = page["content"]
             meta = page["metadata"]
@@ -113,7 +119,6 @@ class SemanticChunker:
                         all_chunks.extend(children)
 
                         global_parent_id += 1
-                        # Retain last few sentences for overlap
                         current_sentences = current_sentences[-2:] if len(current_sentences) >= 2 else current_sentences
                         current_word_count = sum(len(s.split()) for s in current_sentences)
 
@@ -134,5 +139,10 @@ class SemanticChunker:
                 children = self._create_child_chunks(pid, parent_text, pmeta)
                 all_chunks.extend(children)
                 global_parent_id += 1
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"=== [SEMANTIC CHUNKER END] Generated {len(all_chunks)} chunk(s) across {global_parent_id} parent block(s) ===")
+            for c in all_chunks[:3]:
+                logger.debug(f"Chunk ID: {c['chunk_id']} | Heading: '{c['metadata'].get('heading')}' | Snippet: {c['content'][:100]}...")
 
         return all_chunks
