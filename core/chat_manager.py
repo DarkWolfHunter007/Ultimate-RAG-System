@@ -9,18 +9,12 @@ logger = logging.getLogger(__name__)
 CHAT_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "chat_sessions.json")
 
 class ChatManager:
-    _instance = None
 
     def __init__(self):
         self.file_path = os.path.abspath(CHAT_FILE_PATH)
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         self.chats: Dict[str, Dict[str, Any]] = self._load_chats()
 
-    @classmethod
-    def get_instance(cls) -> "ChatManager":
-        if cls._instance is None:
-            cls._instance = ChatManager()
-        return cls._instance
 
     def _load_chats(self) -> Dict[str, Dict[str, Any]]:
         if os.path.exists(self.file_path):

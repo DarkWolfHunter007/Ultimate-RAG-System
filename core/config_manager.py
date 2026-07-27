@@ -56,18 +56,11 @@ class SystemConfig(BaseModel):
 class ConfigManager:
     """Central configuration manager for system settings."""
 
-    _instance = None
-
     def __init__(self):
         self.file_path = os.path.abspath(CONFIG_FILE_PATH)
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         self.config = self._load_from_file()
 
-    @classmethod
-    def get_instance(cls) -> "ConfigManager":
-        if cls._instance is None:
-            cls._instance = ConfigManager()
-        return cls._instance
 
     def _load_from_file(self) -> SystemConfig:
         if os.path.exists(self.file_path):
@@ -130,18 +123,4 @@ class ConfigManager:
         if not self.config.openrouter_api_key:
             self.config.openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
         return self.config
-
-    def get_rag_system_context(self) -> str:
-        """Returns structured metadata format suitable for RAG queries or telemetry."""
-        cfg = self.get_config()
-        model_names = [f"{m.name} ({m.id})" for m in cfg.custom_models]
-        return (
-            f"SYSTEM_CONFIG:\n"
-            f"- Provider: {cfg.provider}\n"
-            f"- Active LLM: {cfg.llm_model}\n"
-            f"- Active Embedding: {cfg.embedding_model}\n"
-            f"- Hybrid Alpha: {cfg.hybrid_alpha}\n"
-            f"- Registered Models ({len(cfg.custom_models)}): {', '.join(model_names)}\n"
-        )
-
 

@@ -22,11 +22,22 @@ class VectorIndexer:
         return self.collection.count()
 
     def clear(self):
-        self.client.delete_collection(self.collection_name)
-        self.collection = self.client.get_or_create_collection(
-            name=self.collection_name,
-            metadata={"hnsw:space": "cosine"}
-        )
+        try:
+            cnt = self.collection.count()
+            if cnt > 0:
+                all_ids = self.collection.get(include=[])["ids"]
+                if all_ids:
+                    self.collection.delete(ids=all_ids)
+        except Exception as e:
+            logger.warning(f"Error during collection delete(ids): {e}. Re-creating collection handle.")
+            try:
+                self.client.delete_collection(self.collection_name)
+            except Exception:
+                pass
+            self.collection = self.client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"hnsw:space": "cosine"}
+            )
 
     def add_chunks(self, chunks: List[Dict[str, Any]], embeddings: Optional[List[List[float]]] = None):
         if not chunks:
@@ -43,7 +54,9 @@ class VectorIndexer:
                 "source": str(c["metadata"].get("source", "")),
                 "page": int(c["metadata"].get("page", 1)),
                 "chunk_index": int(c["metadata"].get("chunk_index", 0)),
-                "heading": str(c["metadata"].get("heading", ""))
+                "heading": str(c["metadata"].get("heading", "")),
+                "parent_id": str(c["metadata"].get("parent_id", c["chunk_id"])),
+                "chunk_type": str(c["metadata"].get("chunk_type", "child")),
             }
             for c in chunks
         ]
@@ -132,6 +145,8 @@ class VectorIndexer:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"[ChromaDB Vector Search] Returned {len(output)} vector hit(s). Top score: {output[0]['score'] if output else 'N/A'}")
 
+        # Exclude parent marker docs — they are stored for ID lookup only, not search results
+        output = [r for r in output if r["metadata"].get("chunk_type", "child") != "parent"]
         return output
 
     def delete_by_source(self, source_name: str):
@@ -152,9 +167,23 @@ class VectorIndexer:
         results = self.collection.get(include=["documents", "metadatas"], limit=count)
         output = []
         for i in range(len(results["ids"])):
+            # Exclude parent marker docs from BM25 re-indexing and Nano-tier full-corpus fetch
+            if results["metadatas"][i].get("chunk_type", "child") == "parent":
+                continue
             output.append({
                 "chunk_id": results["ids"][i],
                 "content": results["documents"][i],
                 "metadata": results["metadatas"][i]
             })
         return output
+
+    def get_by_ids(self, ids: List[str]) -> Dict[str, str]:
+        """Fetch chunk contents by ID — used for small-to-big parent content resolution."""
+        if not ids:
+            return {}
+        try:
+            results = self.collection.get(ids=list(ids), include=["documents"])
+            return dict(zip(results["ids"], results["documents"]))
+        except Exception as e:
+            logger.warning(f"get_by_ids failed: {e}")
+            return {}

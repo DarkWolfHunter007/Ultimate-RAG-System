@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import asyncio
 import os
 import shutil
 import time
@@ -12,7 +13,7 @@ from typing import List, Dict, Any, Optional
 from core.config_manager import ConfigManager, CustomModel
 from core.chat_manager import ChatManager
 from core.adaptive_engine import AdaptiveEngine
-from ingestion.multi_parser import MultiParser
+from ingestion.multi_parser import parse_file
 from ingestion.semantic_chunker import SemanticChunker
 from ingestion.vector_indexer import VectorIndexer
 from retrieval.bm25_engine import BM25Engine
@@ -31,27 +32,14 @@ app.add_middleware(
 vector_indexer = VectorIndexer()
 bm25_engine = BM25Engine()
 adaptive_engine = AdaptiveEngine(vector_indexer, bm25_engine)
-config_mgr = ConfigManager.get_instance()
-chat_mgr = ChatManager.get_instance()
+config_mgr = ConfigManager()
+chat_mgr = ChatManager()
 
 class QueryRequest(BaseModel):
     query: str
     chat_id: Optional[str] = None
 
-class ConfigUpdateRequest(BaseModel):
-    provider: Optional[str] = None
-    openrouter_api_key: Optional[str] = None
-    ollama_base_url: Optional[str] = None
-    llm_model: Optional[str] = None
-    embedding_model: Optional[str] = None
-    hybrid_alpha: Optional[float] = None
-    mmr_lambda: Optional[float] = None
-    top_k_candidates: Optional[int] = None
-    top_n_final: Optional[int] = None
-    enable_reranker: Optional[bool] = None
-    enable_hyde: Optional[bool] = None
-    strict_evidence: Optional[bool] = None
-    confirm_deletion: Optional[bool] = None
+
 
 class AddModelRequest(BaseModel):
     id: str
@@ -75,8 +63,8 @@ async def get_config():
     return config_mgr.get_config().model_dump()
 
 @app.post("/api/config")
-async def update_config(req: ConfigUpdateRequest):
-    updated = config_mgr.update_config(req.model_dump())
+async def update_config(req: Dict[str, Any]):
+    updated = config_mgr.update_config(req)
     return updated.model_dump()
 
 @app.post("/api/config/reset")
@@ -334,7 +322,8 @@ async def clear_index():
                     pass
     return {"message": "Corpus index and uploaded files successfully cleared."}
 
-chunking_status = {
+_upload_lock = asyncio.Lock()
+chunking_status: Dict[str, Any] = {
     "active": False,
     "total_chunks": 0,
     "corpus_tier": "Nano",
@@ -347,116 +336,117 @@ async def get_upload_status():
 
 @app.post("/api/upload")
 async def upload_documents(files: List[UploadFile] = File(...)):
-    global chunking_status
-    initial_tier, initial_chunks = adaptive_engine.get_corpus_tier()
-    
-    file_items = [
-        {
-            "filename": f.filename,
-            "status": "Queued",
-            "percent": 0,
-            "chunks": 0
-        } for f in files
-    ]
+    async with _upload_lock:
+        initial_tier, initial_chunks = adaptive_engine.get_corpus_tier()
 
-    chunking_status = {
-        "active": True,
-        "total_chunks": initial_chunks,
-        "corpus_tier": initial_tier,
-        "files": file_items
-    }
+        file_items = [
+            {
+                "filename": f.filename,
+                "status": "Queued",
+                "percent": 0,
+                "chunks": 0
+            } for f in files
+        ]
 
-    chunker = SemanticChunker(chunk_size=350, chunk_overlap=40)
-    total_indexed_chunks = 0
-    successful_files = 0
-    errors = []
+        chunking_status.update({
+            "active": True,
+            "total_chunks": initial_chunks,
+            "corpus_tier": initial_tier,
+            "files": file_items
+        })
 
-    BATCH_SIZE = 20  # Micro-batch size to prevent memory overload & HTTP timeouts
+        chunker = SemanticChunker(chunk_size=350, chunk_overlap=40)
+        total_indexed_chunks = 0
+        successful_files = 0
+        errors = []
 
-    for idx, file in enumerate(files):
-        file_path = os.path.join(DOCUMENTS_DIR, file.filename)
-        file_items[idx]["status"] = "Saving..."
-        file_items[idx]["percent"] = 15
+        BATCH_SIZE = 20  # Micro-batch size to prevent memory overload & HTTP timeouts
 
-        try:
-            # 1. Save file to disk
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+        for idx, file in enumerate(files):
+            file_path = os.path.join(DOCUMENTS_DIR, file.filename)
+            file_items[idx]["status"] = "Saving..."
+            file_items[idx]["percent"] = 15
 
-            # 2. Parse & Chunk document
-            file_items[idx]["status"] = "Chunking..."
-            file_items[idx]["percent"] = 40
+            try:
+                # 1. Save file to disk
+                with open(file_path, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
 
-            parsed_pages = MultiParser.parse_file(file_path, file.filename)
-            file_chunks = chunker.chunk_documents(parsed_pages)
+                # 2. Parse & Chunk document
+                file_items[idx]["status"] = "Chunking..."
+                file_items[idx]["percent"] = 40
 
-            if not file_chunks:
-                file_items[idx]["status"] = "Empty"
+                parsed_pages = parse_file(file_path, file.filename)
+                file_chunks = chunker.chunk_documents(parsed_pages)
+
+                if not file_chunks:
+                    file_items[idx]["status"] = "Empty"
+                    file_items[idx]["percent"] = 100
+                    continue
+
+                file_items[idx]["chunks"] = len(file_chunks)
+                file_items[idx]["status"] = f"Embedding {len(file_chunks)} chunks..."
+                file_items[idx]["percent"] = 60
+
+                # 3. Micro-batch embedding generation
+                file_embeddings = []
+                chunk_texts = [c["content"] for c in file_chunks]
+
+                for i in range(0, len(chunk_texts), BATCH_SIZE):
+                    batch_texts = chunk_texts[i:i + BATCH_SIZE]
+                    try:
+                        batch_embs = await adaptive_engine.model_router.generate_embeddings(batch_texts)
+                        if batch_embs and isinstance(batch_embs, list):
+                            file_embeddings.extend(batch_embs)
+                    except Exception as batch_err:
+                        logger.warning(f"Micro-batch embedding error for file '{file.filename}' ({batch_err}).")
+
+                    processed = min(i + BATCH_SIZE, len(chunk_texts))
+                    emb_percent = int(60 + (processed / len(chunk_texts)) * 35)
+                    file_items[idx]["percent"] = emb_percent
+                    file_items[idx]["status"] = f"Embedding ({processed}/{len(chunk_texts)} chunks)"
+
+                # 4. Add file chunks to ChromaDB
+                use_embeddings = file_embeddings if len(file_embeddings) == len(file_chunks) else None
+                vector_indexer.add_chunks(file_chunks, embeddings=use_embeddings)
+
+                total_indexed_chunks += len(file_chunks)
+                successful_files += 1
                 file_items[idx]["percent"] = 100
-                continue
+                file_items[idx]["status"] = "Indexed"
 
-            file_items[idx]["chunks"] = len(file_chunks)
-            file_items[idx]["status"] = f"Embedding {len(file_chunks)} chunks..."
-            file_items[idx]["percent"] = 60
+                current_tier, current_chunks = adaptive_engine.get_corpus_tier()
+                chunking_status["total_chunks"] = current_chunks
+                chunking_status["corpus_tier"] = current_tier
 
-            # 3. Micro-batch embedding generation
-            file_embeddings = []
-            chunk_texts = [c["content"] for c in file_chunks]
-            
-            for i in range(0, len(chunk_texts), BATCH_SIZE):
-                batch_texts = chunk_texts[i:i + BATCH_SIZE]
-                try:
-                    batch_embs = await adaptive_engine.model_router.generate_embeddings(batch_texts)
-                    if batch_embs and isinstance(batch_embs, list):
-                        file_embeddings.extend(batch_embs)
-                except Exception as batch_err:
-                    logger.warning(f"Micro-batch embedding error for file '{file.filename}' ({batch_err}).")
+            except Exception as file_err:
+                logger.error(f"Error processing file '{file.filename}': {file_err}")
+                errors.append(f"{file.filename}: {str(file_err)}")
+                file_items[idx]["status"] = "Error"
+                file_items[idx]["percent"] = 100
 
-                processed = min(i + BATCH_SIZE, len(chunk_texts))
-                emb_percent = int(60 + (processed / len(chunk_texts)) * 35)
-                file_items[idx]["percent"] = emb_percent
-                file_items[idx]["status"] = f"Embedding ({processed}/{len(chunk_texts)} chunks)"
+        # 5. Re-index BM25 with full updated corpus
+        if successful_files > 0:
+            all_existing = vector_indexer.get_all_chunks()
+            bm25_engine.index_chunks(all_existing)
 
-            # 4. Add file chunks to ChromaDB
-            use_embeddings = file_embeddings if len(file_embeddings) == len(file_chunks) else None
-            vector_indexer.add_chunks(file_chunks, embeddings=use_embeddings)
+        final_tier, final_chunks = adaptive_engine.get_corpus_tier()
 
-            total_indexed_chunks += len(file_chunks)
-            successful_files += 1
-            file_items[idx]["percent"] = 100
-            file_items[idx]["status"] = "Indexed"
+        msg = f"Successfully processed {successful_files}/{len(files)} files ({total_indexed_chunks} chunks)."
+        if errors:
+            msg += f" (Skipped {len(errors)} files due to errors)."
 
-            current_tier, current_chunks = adaptive_engine.get_corpus_tier()
-            chunking_status["total_chunks"] = current_chunks
-            chunking_status["corpus_tier"] = current_tier
+        chunking_status["active"] = False
+        chunking_status["total_chunks"] = final_chunks
+        chunking_status["corpus_tier"] = final_tier
 
-        except Exception as file_err:
-            logger.error(f"Error processing file '{file.filename}': {file_err}")
-            errors.append(f"{file.filename}: {str(file_err)}")
-            file_items[idx]["status"] = "Error"
-            file_items[idx]["percent"] = 100
+        return {
+            "message": msg,
+            "total_chunks": final_chunks,
+            "corpus_tier": final_tier,
+            "errors": errors
+        }
 
-    # 5. Re-index BM25 with full updated corpus
-    if successful_files > 0:
-        all_existing = vector_indexer.get_all_chunks()
-        bm25_engine.index_chunks(all_existing)
-
-    final_tier, final_chunks = adaptive_engine.get_corpus_tier()
-    
-    msg = f"Successfully processed {successful_files}/{len(files)} files ({total_indexed_chunks} chunks)."
-    if errors:
-        msg += f" (Skipped {len(errors)} files due to errors)."
-
-    chunking_status["active"] = False
-    chunking_status["total_chunks"] = final_chunks
-    chunking_status["corpus_tier"] = final_tier
-
-    return {
-        "message": msg,
-        "total_chunks": final_chunks,
-        "corpus_tier": final_tier,
-        "errors": errors
-    }
 
 class CreateChatRequest(BaseModel):
     title: Optional[str] = None

@@ -9,7 +9,16 @@ class ModelRouter:
     """Unified API client router for OpenRouter and local Ollama endpoints."""
     
     def __init__(self):
-        self.config_mgr = ConfigManager.get_instance()
+        self.config_mgr = ConfigManager()
+
+    async def generate(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.2,
+        max_tokens: int = 3072
+    ) -> Dict[str, Any]:
+        return await self.generate_completion(prompt=prompt, system_prompt=system_prompt, temperature=temperature, max_tokens=max_tokens)
 
     async def generate_completion(
         self,

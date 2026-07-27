@@ -1,0 +1,50 @@
+[
+  {
+    "query": "How does the hybrid search combine dense vector and sparse BM25 results?",
+    "expected_keywords": ["rrf", "reciprocal", "rank", "fusion", "alpha", "dense", "sparse"],
+    "expected_parent_id": null,
+    "notes": "Tests retrieval of the RRF / HybridFusion section"
+  },
+  {
+    "query": "What is the parent-child chunking strategy and how does small-to-big resolution work?",
+    "expected_keywords": ["parent", "child", "chunk", "resolution", "small", "big"],
+    "expected_parent_id": null,
+    "notes": "Tests retrieval of the SemanticChunker hierarchy explanation"
+  },
+  {
+    "query": "How are PDF headings detected using font size?",
+    "expected_keywords": ["pdf", "font", "modal", "heading", "size", "pymupdf"],
+    "expected_parent_id": null,
+    "notes": "Tests retrieval of the PDF parser section"
+  },
+  {
+    "query": "What is HyDE and when is it enabled?",
+    "expected_keywords": ["hyde", "hypothetical", "document", "embedding", "enterprise"],
+    "expected_parent_id": null,
+    "notes": "Tests retrieval of the HyDE generation explanation"
+  },
+  {
+    "query": "What corpus tiers exist and what chunk count thresholds define them?",
+    "expected_keywords": ["nano", "standard", "enterprise", "tier", "corpus", "50", "5000"],
+    "expected_parent_id": null,
+    "notes": "Tests retrieval of the AdaptiveEngine tier logic"
+  },
+  {
+    "query": "How does MMR improve diversity in the final retrieved context?",
+    "expected_keywords": ["mmr", "maximal", "marginal", "relevance", "diversity", "lambda", "jaccard"],
+    "expected_parent_id": null,
+    "notes": "Tests retrieval of the MMR selection section"
+  },
+  {
+    "query": "How are DOCX tables converted to markdown and how are captions attached?",
+    "expected_keywords": ["table", "docx", "markdown", "caption", "figure", "tab"],
+    "expected_parent_id": null,
+    "notes": "Tests retrieval of the DOCX parser table handling"
+  },
+  {
+    "query": "What self-correction mechanism is used when faithfulness score is low?",
+    "expected_keywords": ["faithfulness", "self-rag", "corrective", "refine", "strict", "evidence"],
+    "expected_parent_id": null,
+    "notes": "Tests retrieval of the Self-RAG corrective refinement section"
+  }
+]

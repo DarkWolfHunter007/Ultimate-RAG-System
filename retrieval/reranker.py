@@ -1,38 +1,37 @@
-from typing import List, Dict, Any
 import logging
+from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-class RerankerEngine:
-    """Neural cross-encoder reranker bridge."""
+# Module-level lazy cache for the CrossEncoder model (None = not loaded yet, False = load failed)
+_rerank_model = None
 
-    def __init__(self):
-        self._model = None
 
-    def _load_model(self):
-        if self._model is None:
-            try:
-                from sentence_transformers import CrossEncoder
-                self._model = CrossEncoder("cross-encoder/ms-marco-TinyBERT-L-2-v2", max_length=512)
-            except Exception as e:
-                logger.warning(f"Could not load neural CrossEncoder: {e}. Using light lexical scoring fallback.")
-                self._model = False
+def rerank(query: str, candidates: List[Dict[str, Any]], top_n: int = 5) -> List[Dict[str, Any]]:
+    """Neural cross-encoder reranker. Falls back to truncation if model unavailable."""
+    global _rerank_model
+    if not candidates:
+        return []
 
-    def rerank(self, query: str, candidates: List[Dict[str, Any]], top_n: int = 5) -> List[Dict[str, Any]]:
-        if not candidates:
-            return []
+    if _rerank_model is None:
+        try:
+            from sentence_transformers import CrossEncoder
+            _rerank_model = CrossEncoder("cross-encoder/ms-marco-TinyBERT-L-2-v2", max_length=512)
+        except Exception as e:
+            logger.warning(f"Could not load neural CrossEncoder: {e}. Using truncation fallback.")
+            _rerank_model = False
 
-        self._load_model()
-        if self._model:
-            try:
-                pairs = [[query, c["content"]] for c in candidates]
-                scores = self._model.predict(pairs)
-                for i, score in enumerate(scores):
-                    candidates[i]["rerank_score"] = float(score)
-                candidates.sort(key=lambda x: x["rerank_score"], reverse=True)
-                return candidates[:top_n]
-            except Exception as e:
-                logger.warning(f"Reranking execution error: {e}")
+    if _rerank_model:
+        try:
+            pairs = [[query, c["content"]] for c in candidates]
+            scores = _rerank_model.predict(pairs)
+            for i, score in enumerate(scores):
+                candidates[i]["rerank_score"] = float(score)
+            candidates.sort(key=lambda x: x["rerank_score"], reverse=True)
+            return candidates[:top_n]
+        except Exception as e:
+            logger.warning(f"Reranking execution error: {e}")
 
-        # Fallback if neural cross-encoder model is not available
-        return candidates[:top_n]
+    return candidates[:top_n]
+
+
