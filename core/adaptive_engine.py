@@ -158,7 +158,7 @@ class AdaptiveEngine:
         )
         telemetry.log_span("OpenRouter LLM Synthesis", (time.perf_counter() - t_llm) * 1000, f"Model: {cfg.llm_model}")
 
-        answer_text = llm_response.get("content", "")
+        answer_text = (llm_response.get("content") if llm_response else "") or ""
 
         # 7. Quality & Metrics Evaluation + Self-RAG Corrective Refinement
         metrics = evaluate_metrics(query, answer_text, final_contexts)
