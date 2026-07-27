@@ -675,11 +675,11 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!skipReRender) {
         renderConfigUI(currentConfig);
       } else {
-        summaryProvider.innerText = currentConfig.provider.toUpperCase();
-        summaryLLM.innerText = currentConfig.llm_model;
-        summaryEmbedding.innerText = currentConfig.embedding_model;
-        summaryMode.innerText = `Hybrid (α=${currentConfig.hybrid_alpha})`;
-        activeModelBadge.innerText = `Model: ${currentConfig.llm_model}`;
+        if (summaryProvider) summaryProvider.innerText = currentConfig.provider.toUpperCase();
+        if (summaryLLM) summaryLLM.innerText = currentConfig.llm_model;
+        if (summaryEmbedding) summaryEmbedding.innerText = currentConfig.embedding_model;
+        if (summaryMode) summaryMode.innerText = `Hybrid (α=${currentConfig.hybrid_alpha})`;
+        if (activeModelBadge) activeModelBadge.innerText = `Model: ${currentConfig.llm_model}`;
       }
 
       if (showNotification) showToast("Settings saved successfully!", "success");
