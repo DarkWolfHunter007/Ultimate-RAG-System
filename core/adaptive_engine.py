@@ -13,7 +13,7 @@ from analytics.metrics_evaluator import MetricsEvaluator
 
 logger = logging.getLogger(__name__)
 
-from retrieval.query_expander import QueryExpander
+from retrieval.query_expander import expand_query
 
 class AdaptiveEngine:
     """Dynamic Adaptive Search Engine that scales search algorithms based on corpus size."""
@@ -24,7 +24,6 @@ class AdaptiveEngine:
         self.config_mgr = ConfigManager.get_instance()
         self.model_router = ModelRouter()
         self.hyde_gen = HyDEGenerator(self.model_router)
-        self.query_expander = QueryExpander(self.model_router)
         self.reranker = RerankerEngine()
 
     def get_corpus_tier(self) -> Tuple[str, int]:
@@ -50,7 +49,7 @@ class AdaptiveEngine:
             telemetry.log_span("HyDE Synthesis", (time.perf_counter() - t0) * 1000, f"Expanded via {cfg.llm_model}")
         else:
             t_exp = time.perf_counter()
-            search_queries = await self.query_expander.expand_query(query)
+            search_queries = await expand_query(query, self.model_router)
             telemetry.log_span("Multi-Query Expansion", (time.perf_counter() - t_exp) * 1000, f"Generated {len(search_queries)} query variants")
 
         # 2. Multi-Query Vector & BM25 Search

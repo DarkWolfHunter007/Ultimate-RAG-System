@@ -28,10 +28,4 @@ async def expand_query(query: str, router: Optional[ModelRouter] = None) -> List
         logger.warning(f"Query expansion fallback: {e}")
         return [query]
 
-class QueryExpander:
-    """Backwards-compatible wrapper around expand_query."""
-    def __init__(self, model_router: Optional[ModelRouter] = None):
-        self.router = model_router or ModelRouter()
 
-    async def expand_query(self, query: str) -> List[str]:
-        return await expand_query(query, self.router)
