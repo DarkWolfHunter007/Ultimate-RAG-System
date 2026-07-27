@@ -27,5 +27,12 @@ if __name__ == "__main__":
         )
 
     print(f"🚀 [Starting] Ultimate-RAG-System Server on http://{args.host}:{args.port} ...")
-    uvicorn.run("ui.server:app", host=args.host, port=args.port, reload=True, log_level="debug" if args.debug else "info")
+    uvicorn.run(
+        "ui.server:app",
+        host=args.host,
+        port=args.port,
+        reload=True,
+        reload_excludes=["data/*", "*.json", "*.sqlite3*"],
+        log_level="debug" if args.debug else "info"
+    )
 
