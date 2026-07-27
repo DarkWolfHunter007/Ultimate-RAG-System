@@ -3,12 +3,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import logging
 import asyncio
 import os
 import shutil
 import time
 import httpx
 from typing import List, Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 from core.config_manager import ConfigManager, CustomModel
 from core.chat_manager import ChatManager

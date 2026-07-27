@@ -21,23 +21,31 @@ class VectorIndexer:
     def count(self) -> int:
         return self.collection.count()
 
-    def clear(self):
+    def recreate_collection(self):
+        """Hard drop and recreate collection to reset embedding dimension constraints."""
         try:
-            cnt = self.collection.count()
-            if cnt > 0:
-                all_ids = self.collection.get(include=[])["ids"]
-                if all_ids:
-                    self.collection.delete(ids=all_ids)
-        except Exception as e:
-            logger.warning(f"Error during collection delete(ids): {e}. Re-creating collection handle.")
+            self.client.delete_collection(self.collection_name)
+        except Exception:
+            pass
+        self.collection = self.client.get_or_create_collection(
+            name=self.collection_name,
+            metadata={"hnsw:space": "cosine"}
+        )
+
+    def clear(self, hard_reset: bool = True):
+        """Clears collection. hard_reset=True drops collection to allow dimension changes."""
+        if hard_reset:
+            self.recreate_collection()
+        else:
             try:
-                self.client.delete_collection(self.collection_name)
-            except Exception:
-                pass
-            self.collection = self.client.get_or_create_collection(
-                name=self.collection_name,
-                metadata={"hnsw:space": "cosine"}
-            )
+                cnt = self.collection.count()
+                if cnt > 0:
+                    all_ids = self.collection.get(include=[])["ids"]
+                    if all_ids:
+                        self.collection.delete(ids=all_ids)
+            except Exception as e:
+                logger.warning(f"Error during collection delete(ids): {e}. Re-creating collection handle.")
+                self.recreate_collection()
 
     def add_chunks(self, chunks: List[Dict[str, Any]], embeddings: Optional[List[List[float]]] = None):
         if not chunks:
@@ -77,8 +85,8 @@ class VectorIndexer:
                 )
         except Exception as e:
             if "dimension" in str(e).lower():
-                logger.warning(f"Embedding dimension mismatch during add_chunks ({e}). Clearing collection and retrying...")
-                self.clear()
+                logger.warning(f"Embedding dimension mismatch during add_chunks ({e}). Recreating collection with new dimension and retrying...")
+                self.recreate_collection()
                 if embeddings and len(embeddings) == len(chunks):
                     self.collection.add(ids=ids, documents=documents, metadatas=metadatas, embeddings=embeddings)
                 else:
