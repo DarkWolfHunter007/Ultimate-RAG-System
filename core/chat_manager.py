@@ -33,20 +33,17 @@ class ChatManager:
             logger.error(f"Failed to save chat sessions ({self.file_path}): {e}")
 
     def list_chats(self) -> List[Dict[str, Any]]:
-        summaries = []
-        for chat_id, data in self.chats.items():
-            messages = data.get("messages", [])
-            last_time = messages[-1].get("timestamp", data.get("created_at")) if messages else data.get("created_at")
-            summaries.append({
-                "id": chat_id,
+        summaries = [
+            {
+                "id": cid,
                 "title": data.get("title", "New Chat"),
                 "created_at": data.get("created_at", 0),
-                "updated_at": last_time,
-                "message_count": len(messages)
-            })
-        # Sort newest updated first
-        summaries.sort(key=lambda x: x["updated_at"], reverse=True)
-        return summaries
+                "updated_at": data["messages"][-1].get("timestamp", data.get("created_at")) if data.get("messages") else data.get("created_at"),
+                "message_count": len(data.get("messages", []))
+            }
+            for cid, data in self.chats.items()
+        ]
+        return sorted(summaries, key=lambda x: x["updated_at"], reverse=True)
 
     def create_chat(self, title: Optional[str] = None) -> Dict[str, Any]:
         chat_id = f"chat_{int(time.time() * 1000)}"

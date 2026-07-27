@@ -59,13 +59,11 @@ class ModelRouter:
         self, cfg, messages: List[Dict[str, str]], temperature: float, max_tokens: int
     ) -> Dict[str, Any]:
         api_key = cfg.openrouter_api_key
+        def _err(msg: str) -> Dict[str, Any]:
+            return {"content": msg, "model": cfg.llm_model, "provider": "openrouter", "usage": {"total_tokens": 0}}
+
         if not api_key:
-            return {
-                "content": "⚠️ **OPENROUTER_API_KEY is missing.** Please enter your OpenRouter API Key in the left sidebar Control Center, or switch provider to Local Ollama.",
-                "model": cfg.llm_model,
-                "provider": "openrouter",
-                "usage": {"total_tokens": 0}
-            }
+            return _err("⚠️ **OPENROUTER_API_KEY is missing.** Please enter your OpenRouter API Key in the left sidebar Control Center, or switch provider to Local Ollama.")
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -84,41 +82,22 @@ class ModelRouter:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(f"{cfg.openrouter_base_url}/chat/completions", headers=headers, json=payload)
                 if resp.status_code != 200:
-                    err_msg = f"HTTP {resp.status_code}"
                     try:
-                        err_json = resp.json()
-                        err_msg = err_json.get("error", {}).get("message", resp.text)
+                        err_msg = resp.json().get("error", {}).get("message", resp.text)
                     except Exception:
-                        pass
-                    return {
-                        "content": f"⚠️ **OpenRouter API Error [{resp.status_code}]:** {err_msg}\n\n*Check your API key in Settings.*",
-                        "model": cfg.llm_model,
-                        "provider": "openrouter",
-                        "usage": {"total_tokens": 0}
-                    }
+                        err_msg = f"HTTP {resp.status_code}"
+                    return _err(f"⚠️ **OpenRouter API Error [{resp.status_code}]:** {err_msg}\n\n*Check your API key in Settings.*")
                 data = resp.json()
-                content = data["choices"][0]["message"]["content"]
-                usage = data.get("usage", {})
                 return {
-                    "content": content,
+                    "content": data["choices"][0]["message"]["content"],
                     "model": cfg.llm_model,
                     "provider": "openrouter",
-                    "usage": usage
+                    "usage": data.get("usage", {})
                 }
         except httpx.TimeoutException:
-            return {
-                "content": f"⚠️ **Request Timeout:** OpenRouter API did not respond within 60 seconds. Please try again or switch model.",
-                "model": cfg.llm_model,
-                "provider": "openrouter",
-                "usage": {"total_tokens": 0}
-            }
+            return _err("⚠️ **Request Timeout:** OpenRouter API did not respond within 60 seconds. Please try again or switch model.")
         except Exception as e:
-            return {
-                "content": f"⚠️ **Connection Error:** {str(e)}",
-                "model": cfg.llm_model,
-                "provider": "openrouter",
-                "usage": {"total_tokens": 0}
-            }
+            return _err(f"⚠️ **Connection Error:** {str(e)}")
 
     async def _call_openrouter_embeddings(self, cfg, texts: List[str]) -> List[List[float]]:
         api_key = cfg.openrouter_api_key

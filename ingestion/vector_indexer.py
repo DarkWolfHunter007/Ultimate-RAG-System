@@ -154,14 +154,11 @@ class VectorIndexer:
 
     def delete_by_source(self, source_name: str):
         """Deletes all chunks associated with a specific file source."""
-        try:
-            self.collection.delete(where={"source": source_name})
-        except Exception:
-            pass
-        try:
-            self.collection.delete(where={"source": os.path.basename(source_name)})
-        except Exception as e:
-            logger.warning(f"ChromaDB delete by source '{source_name}' failed: {e}")
+        for src in {source_name, os.path.basename(source_name)}:
+            try:
+                self.collection.delete(where={"source": src})
+            except Exception:
+                pass
 
     def get_all_chunks(self) -> List[Dict[str, Any]]:
         count = self.count()
