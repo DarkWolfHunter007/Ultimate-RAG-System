@@ -797,6 +797,21 @@ label {
   gap: 1.25rem;
 }
 
+.settings-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  overflow: hidden;
+}
+
+.settings-header {
+  margin-bottom: 1rem;
+  flex-shrink: 0;
+}
+
 .settings-header h2 {
   font-size: 1.6rem;
   font-weight: 800;
@@ -811,7 +826,9 @@ label {
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: 1.5rem;
-  align-items: start;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .settings-nav-sidebar {
@@ -823,6 +840,7 @@ label {
   border: 1px solid var(--bg-card-border);
   border-radius: var(--radius-lg);
   padding: 0.85rem;
+  height: max-content;
 }
 
 .settings-nav-item {
@@ -861,6 +879,10 @@ label {
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.5rem;
 }
 
 .settings-panel {
@@ -1118,14 +1140,16 @@ input:checked + .slider:before { transform: translateX(20px); }
 .chat-sidebar::-webkit-scrollbar,
 .chats-list::-webkit-scrollbar,
 .documents-list::-webkit-scrollbar,
-.chat-thread::-webkit-scrollbar {
+.chat-thread::-webkit-scrollbar,
+.settings-content-area::-webkit-scrollbar {
   width: 5px;
 }
 
 .chat-sidebar::-webkit-scrollbar-thumb,
 .chats-list::-webkit-scrollbar-thumb,
 .documents-list::-webkit-scrollbar-thumb,
-.chat-thread::-webkit-scrollbar-thumb {
+.chat-thread::-webkit-scrollbar-thumb,
+.settings-content-area::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
@@ -1133,6 +1157,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .chat-sidebar::-webkit-scrollbar-thumb:hover,
 .chats-list::-webkit-scrollbar-thumb:hover,
 .documents-list::-webkit-scrollbar-thumb:hover,
-.chat-thread::-webkit-scrollbar-thumb:hover {
+.chat-thread::-webkit-scrollbar-thumb:hover,
+.settings-content-area::-webkit-scrollbar-thumb:hover {
   background: var(--accent-cyan);
 }
