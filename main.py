@@ -25,6 +25,8 @@ if __name__ == "__main__":
             level=logging.INFO,
             format="%(asctime)s | %(levelname)-8s | %(message)s"
         )
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("chromadb").setLevel(logging.WARNING)
 
     print(f"🚀 [Starting] Ultimate-RAG-System Server on http://{args.host}:{args.port} ...")
     uvicorn.run(

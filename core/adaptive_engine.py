@@ -143,8 +143,15 @@ class AdaptiveEngine:
         user_prompt += f"USER QUESTION: {query}"
 
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"\n=== [RAG PIPELINE DEBUG] Tier: {tier} | Search Queries: {search_queries} ===")
-            logger.debug(f"Retrieved Excerpts Count: {len(final_contexts)} | Parent map hits: {len(parent_map)}")
+            logger.debug(f"\n{'='*60}\nQUERY: '{query}' [Tier: {tier}]\n{'='*60}")
+            logger.debug(f"Search query variants ({len(search_queries)}): {search_queries}")
+            logger.debug(f"RRF Fused returned {len(fused_candidates)} candidates.")
+            logger.debug(f"MMR selected {len(final_contexts)} final context chunks.")
+            logger.debug(f"Fetching parent contexts for IDs: {parent_ids}")
+            logger.debug(f"Retrieved {len(parent_map)} parent docs from ChromaDB.")
+            logger.debug(f"\n--- FINAL LLM CONTEXT ({len(context_str)} chars) ---")
+            logger.debug(context_str[:1200] + "..." if len(context_str) > 1200 else context_str)
+            logger.debug("--- END CONTEXT ---\n")
 
         llm_response = await self.model_router.generate_completion(
             prompt=user_prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=3072
