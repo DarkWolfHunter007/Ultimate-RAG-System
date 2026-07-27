@@ -61,6 +61,25 @@ class ResetConfigRequest(BaseModel):
     clear_credentials: bool = False
     clear_custom_models: bool = False
 
+async def detect_and_store_embedding_dimension() -> Optional[int]:
+    """Pings active embedding model to determine vector dimension and persists to system_config.json."""
+    try:
+        cfg = config_mgr.get_config()
+        if cfg.embedding_model:
+            embs = await adaptive_engine.model_router.generate_embeddings(["ping"])
+            if embs and len(embs) > 0 and len(embs[0]) > 0:
+                dim = len(embs[0])
+                config_mgr.update_config({"embedding_dimension": dim})
+                logger.info(f"⚡ Active embedding model '{cfg.embedding_model}' dimension detected ({dim}d). Saved to system_config.json.")
+                return dim
+    except Exception as e:
+        logger.info(f"Embedding dimension detection note: {e}")
+    return None
+
+@app.on_event("startup")
+async def startup_event():
+    await detect_and_store_embedding_dimension()
+
 @app.get("/api/config")
 async def get_config():
     return config_mgr.get_config().model_dump()
@@ -68,6 +87,8 @@ async def get_config():
 @app.post("/api/config")
 async def update_config(req: Dict[str, Any]):
     updated = config_mgr.update_config(req)
+    if "embedding_model" in req or "provider" in req:
+        asyncio.create_task(detect_and_store_embedding_dimension())
     return updated.model_dump()
 
 @app.post("/api/config/reset")
@@ -136,6 +157,8 @@ async def ping_model(req: PingModelRequest):
                     if is_embedding:
                         emb = data.get("data", [{}])[0].get("embedding", [])
                         dimension = len(emb) if isinstance(emb, list) else None
+                        if dimension and req.model == cfg.embedding_model:
+                            config_mgr.update_config({"embedding_dimension": dimension})
 
                     msg = f"Success ({elapsed_ms}ms)! Embedding model '{req.model}' is valid (Dimension: {dimension}d)." if is_embedding and dimension else f"Success ({elapsed_ms}ms)! Model '{req.model}' is valid and responding."
 
@@ -183,6 +206,8 @@ async def ping_model(req: PingModelRequest):
                     if resp.status_code == 200:
                         emb = resp.json().get("embedding", [])
                         dimension = len(emb) if isinstance(emb, list) else None
+                        if dimension and req.model == cfg.embedding_model:
+                            config_mgr.update_config({"embedding_dimension": dimension})
                         return {
                             "status": "ok",
                             "latency_ms": elapsed_ms,

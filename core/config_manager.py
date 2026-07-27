@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -34,9 +34,10 @@ class SystemConfig(BaseModel):
     openrouter_base_url: str = Field(default="https://openrouter.ai/api/v1")
     ollama_base_url: str = Field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
     
-    # Selected Models
+    # Selected Models & Dynamic Properties
     llm_model: str = Field(default="google/gemini-2.0-flash-lite-001")
     embedding_model: str = Field(default="nvidia/nemotron-3-embed-1b:free")
+    embedding_dimension: Optional[int] = Field(default=None, description="Active embedding model vector dimension (e.g. 384, 1536, 2048)")
     
     # Registered Models List
     custom_models: List[CustomModel] = Field(default_factory=get_default_models)
