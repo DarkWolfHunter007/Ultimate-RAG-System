@@ -125,6 +125,10 @@ class AdaptiveEngine:
             user_prompt += f"RECENT CONVERSATION HISTORY:\n{history_str}\n\n"
         user_prompt += f"USER QUESTION: {query}"
 
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"\n=== [RAG PIPELINE DEBUG] Tier: {tier} | Search Queries: {search_queries} ===")
+            logger.debug(f"Retrieved Excerpts Count: {len(final_contexts)}")
+
         llm_response = await self.model_router.generate_completion(
             prompt=user_prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=3072
         )
@@ -135,6 +139,9 @@ class AdaptiveEngine:
         # 7. Quality & Metrics Evaluation + Self-RAG Corrective Refinement
         metrics = MetricsEvaluator.evaluate(query, answer_text, final_contexts)
         
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Metrics Evaluated: Faithfulness={metrics.get('faithfulness')}, Precision={metrics.get('context_precision')}, Recall={metrics.get('context_recall')}")
+
         if cfg.strict_evidence and metrics.get("faithfulness", 1.0) < 0.70:
             t_correct = time.perf_counter()
             refine_prompt = (

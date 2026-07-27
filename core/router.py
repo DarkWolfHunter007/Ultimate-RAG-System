@@ -25,10 +25,22 @@ class ModelRouter:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"\n=== [LLM REQUEST] Provider: {cfg.provider} | Model: {cfg.llm_model} | Temp: {temperature} ===")
+            if system_prompt:
+                logger.debug(f"SYSTEM PROMPT:\n{system_prompt}")
+            logger.debug(f"USER PROMPT & CONTEXT:\n{prompt}\n==================================================")
+
         if cfg.provider == "ollama":
-            return await self._call_ollama_chat(cfg, messages, temperature)
+            res = await self._call_ollama_chat(cfg, messages, temperature)
         else:
-            return await self._call_openrouter_chat(cfg, messages, temperature, max_tokens)
+            res = await self._call_openrouter_chat(cfg, messages, temperature, max_tokens)
+
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"\n=== [LLM RESPONSE] Model: {res.get('model')} ===")
+            logger.debug(f"CONTENT:\n{res.get('content')}\n==================================================")
+
+        return res
 
     async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         cfg = self.config_mgr.get_config()
