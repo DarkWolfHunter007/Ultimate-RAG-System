@@ -3,18 +3,27 @@ import uuid
 from typing import List, Dict, Any
 
 class SemanticChunker:
-    """Hierarchical Parent-Child Aware Chunker. 
-    Indexes small child sub-chunks for high vector precision, while linking back to full parent content for LLM synthesis.
+    """Sentence & Heading Aware Hierarchical Parent-Child Chunker.
+    Ensures complete sentences are preserved without mid-sentence splits,
+    prefixes section heading context to sub-chunks, and links children to full parent text for LLM synthesis.
     """
 
-    def __init__(self, chunk_size: int = 350, chunk_overlap: int = 40, child_size: int = 100):
-        self.chunk_size = chunk_size  # Parent chunk size (words)
-        self.chunk_overlap = chunk_overlap
-        self.child_size = child_size  # Child sub-chunk size for high vector precision
+    def __init__(self, chunk_size: int = 400, chunk_overlap: int = 50, child_size: int = 150):
+        self.chunk_size = chunk_size      # Target parent chunk size in words
+        self.chunk_overlap = chunk_overlap  # Target overlap in words
+        self.child_size = child_size      # Target child chunk size in words
 
-    def _create_child_chunks(self, parent_id: str, parent_text: str, parent_meta: Dict[str, Any], clean_source: str) -> List[Dict[str, Any]]:
-        words = parent_text.split()
-        if len(words) <= self.child_size:
+    def _split_into_sentences(self, text: str) -> List[str]:
+        """Split text by sentence boundaries (. ! ? \n) without breaking sentences in half."""
+        raw_sentences = re.split(r'(?<=[.!?])\s+|\n\s*\n', text)
+        sentences = [s.strip() for s in raw_sentences if s.strip()]
+        return sentences if sentences else [text.strip()]
+
+    def _create_child_chunks(self, parent_id: str, parent_text: str, parent_meta: Dict[str, Any]) -> List[Dict[str, Any]]:
+        sentences = self._split_into_sentences(parent_text)
+        words_count = sum(len(s.split()) for s in sentences)
+
+        if words_count <= self.child_size:
             return [{
                 "chunk_id": parent_id,
                 "content": parent_text,
@@ -22,15 +31,20 @@ class SemanticChunker:
             }]
 
         child_chunks = []
+        current_sentences = []
+        current_word_count = 0
         c_idx = 0
-        for i in range(0, len(words), self.child_size):
-            sub_words = words[i:i + self.child_size + 20]
-            if sub_words:
-                c_text = " ".join(sub_words)
+
+        heading_prefix = f"[{parent_meta['heading']}] " if parent_meta.get("heading") else ""
+
+        for sent in sentences:
+            sent_words = len(sent.split())
+            if current_word_count + sent_words > self.child_size and current_sentences:
+                child_text = heading_prefix + " ".join(current_sentences)
                 cid = f"{parent_id}_c{c_idx}"
                 child_chunks.append({
                     "chunk_id": cid,
-                    "content": c_text,
+                    "content": child_text,
                     "metadata": {
                         **parent_meta,
                         "parent_id": parent_id,
@@ -39,6 +53,26 @@ class SemanticChunker:
                     }
                 })
                 c_idx += 1
+                current_sentences = current_sentences[-1:]  # Keep last sentence for overlap
+                current_word_count = sum(len(s.split()) for s in current_sentences)
+
+            current_sentences.append(sent)
+            current_word_count += sent_words
+
+        if current_sentences:
+            child_text = heading_prefix + " ".join(current_sentences)
+            cid = f"{parent_id}_c{c_idx}"
+            child_chunks.append({
+                "chunk_id": cid,
+                "content": child_text,
+                "metadata": {
+                    **parent_meta,
+                    "parent_id": parent_id,
+                    "parent_content": parent_text,
+                    "child_index": c_idx
+                }
+            })
+
         return child_chunks
 
     def chunk_documents(self, parsed_pages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -50,48 +84,54 @@ class SemanticChunker:
             meta = page["metadata"]
             source_raw = str(meta.get("source", "doc"))
             clean_source = re.sub(r'[^a-zA-Z0-9_-]', '_', source_raw)
-            
+
             paragraphs = [p.strip() for p in re.split(r'\n\s*\n', content) if p.strip()]
-            
-            current_words = []
+            current_sentences = []
+            current_word_count = 0
             current_heading = ""
 
             for para in paragraphs:
                 if para.startswith("#") or (len(para.split()) < 8 and not para.endswith(".")):
                     current_heading = para.lstrip("#").strip()
+                    continue
 
-                words = para.split()
-                if len(current_words) + len(words) > self.chunk_size and current_words:
-                    parent_text = " ".join(current_words)
-                    uid = uuid.uuid4().hex[:6]
-                    pid = f"chk_{clean_source}_{global_parent_id}_{uid}"
-                    pmeta = {
-                        **meta,
-                        "chunk_index": global_parent_id,
-                        "heading": current_heading,
-                        "word_count": len(current_words)
-                    }
+                para_sentences = self._split_into_sentences(para)
+                for sent in para_sentences:
+                    sent_words = len(sent.split())
+                    if current_word_count + sent_words > self.chunk_size and current_sentences:
+                        parent_text = " ".join(current_sentences)
+                        uid = uuid.uuid4().hex[:6]
+                        pid = f"chk_{clean_source}_{global_parent_id}_{uid}"
+                        pmeta = {
+                            **meta,
+                            "chunk_index": global_parent_id,
+                            "heading": current_heading,
+                            "word_count": current_word_count
+                        }
 
-                    children = self._create_child_chunks(pid, parent_text, pmeta, clean_source)
-                    all_chunks.extend(children)
+                        children = self._create_child_chunks(pid, parent_text, pmeta)
+                        all_chunks.extend(children)
 
-                    global_parent_id += 1
-                    current_words = current_words[-self.chunk_overlap:] + words
-                else:
-                    current_words.extend(words)
+                        global_parent_id += 1
+                        # Retain last few sentences for overlap
+                        current_sentences = current_sentences[-2:] if len(current_sentences) >= 2 else current_sentences
+                        current_word_count = sum(len(s.split()) for s in current_sentences)
 
-            if current_words:
-                parent_text = " ".join(current_words)
+                    current_sentences.append(sent)
+                    current_word_count += sent_words
+
+            if current_sentences:
+                parent_text = " ".join(current_sentences)
                 uid = uuid.uuid4().hex[:6]
                 pid = f"chk_{clean_source}_{global_parent_id}_{uid}"
                 pmeta = {
                     **meta,
                     "chunk_index": global_parent_id,
                     "heading": current_heading,
-                    "word_count": len(current_words)
+                    "word_count": current_word_count
                 }
 
-                children = self._create_child_chunks(pid, parent_text, pmeta, clean_source)
+                children = self._create_child_chunks(pid, parent_text, pmeta)
                 all_chunks.extend(children)
                 global_parent_id += 1
 
