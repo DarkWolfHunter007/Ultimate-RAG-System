@@ -434,9 +434,14 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                     file_items[idx]["percent"] = emb_percent
                     file_items[idx]["status"] = f"Embedding ({processed}/{len(chunk_texts)} chunks)"
 
+                if len(file_embeddings) != len(file_chunks):
+                    raise RuntimeError(
+                        f"Embedding generation incomplete ({len(file_embeddings)}/{len(file_chunks)} embeddings generated). "
+                        f"Please check your API key or active embedding provider settings."
+                    )
+
                 # 4. Add file chunks to ChromaDB
-                use_embeddings = file_embeddings if len(file_embeddings) == len(file_chunks) else None
-                vector_indexer.add_chunks(file_chunks, embeddings=use_embeddings)
+                vector_indexer.add_chunks(file_chunks, embeddings=file_embeddings)
 
                 total_indexed_chunks += len(file_chunks)
                 successful_files += 1

@@ -113,18 +113,13 @@ class VectorIndexer:
             except Exception as e:
                 err_str = str(e)
                 if "dimension" in err_str.lower():
-                    logger.warning(f"Query embedding dimension mismatch ({err_str}). Falling back to text query search.")
-                    try:
-                        results = self.collection.query(
-                            query_texts=[query_text],
-                            n_results=min(top_k, self.count()),
-                            include=["documents", "metadatas", "distances"]
-                        )
-                    except Exception as fallback_err:
-                        raise RuntimeError(
-                            "Embedding dimension mismatch: The active embedding model's dimensions do not match the indexed corpus. "
-                            "Please click '🗑️ Clear Vector & BM25 Corpus Index' in Settings and re-upload your documents to re-index them."
-                        ) from fallback_err
+                    logger.warning(
+                        f"Vector search dimension mismatch ({err_str}). "
+                        "Corpus was indexed with a different embedding dimension. "
+                        "Please click 'Clear Vector & BM25 Corpus Index' in Settings and re-upload your documents to re-index. "
+                        "Falling back to BM25 sparse search for this query."
+                    )
+                    return []
                 else:
                     raise e
         else:
