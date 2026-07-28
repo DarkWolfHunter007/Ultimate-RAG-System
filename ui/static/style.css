@@ -605,7 +605,7 @@ body {
   color: var(--text-main);
 }
 
-.citation-badge {
+.model-status-badge {
   display: inline-block;
   background: rgba(0, 242, 254, 0.15);
   color: var(--accent-cyan);
@@ -614,8 +614,14 @@ body {
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 700;
-  cursor: pointer;
+  cursor: default;
   margin: 0 2px;
+}
+
+.model-status-badge--embed {
+  background: rgba(127, 0, 255, 0.2);
+  color: #c084fc;
+  border-color: rgba(127, 0, 255, 0.3);
 }
 
 /* Collapsible Drawers */

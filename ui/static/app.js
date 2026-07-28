@@ -764,7 +764,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       tr.innerHTML = `
         <td>
-          <div class="model-name">${escapeHtml(m.name)} ${isLLMActive ? '<span class="citation-badge">Active LLM</span>' : ''} ${isEmbedActive ? '<span class="citation-badge" style="background: rgba(127,0,255,0.2); color: #c084fc;">Active Embedding</span>' : ''}</div>
+          <div class="model-name">${escapeHtml(m.name)} ${isLLMActive ? '<span class="model-status-badge">Active LLM</span>' : ''} ${isEmbedActive ? '<span class="model-status-badge model-status-badge--embed">Active Embedding</span>' : ''}</div>
           <div class="model-id">${escapeHtml(m.id)}</div>
         </td>
         <td><span class="badge">${m.provider.toUpperCase()}</span></td>
