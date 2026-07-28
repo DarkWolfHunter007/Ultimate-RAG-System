@@ -510,8 +510,7 @@ document.addEventListener("DOMContentLoaded", () => {
       rawHtml = escapeHtml(text).replace(/\n/g, "<br>");
     }
 
-    // Replace [1], [2] with styled citation badges
-    return rawHtml.replace(/\[(\d+)\]/g, '<span class="citation-badge">[$1]</span>');
+    return rawHtml;
   }
 
   function escapeHtml(str) {

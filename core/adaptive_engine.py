@@ -122,8 +122,7 @@ class AdaptiveEngine:
             "Rules:\n"
             "1. Base your answer ONLY on the information contained in the Context Documents.\n"
             "2. If the answer cannot be determined from the Context Documents, state clearly: 'I cannot find relevant information in the uploaded documents to answer this question.'\n"
-            "3. Always cite sources inline using [Document X] format when stating facts.\n"
-            "4. Be concise, direct, and structured."
+            "3. Be concise, direct, and structured."
         )
 
         history_prompt = ""
@@ -154,7 +153,7 @@ class AdaptiveEngine:
                 "STRICT GROUNDING MODE: You are an ultra-precise Q&A model.\n"
                 "Your previous answer had low faithfulness to the source text.\n"
                 "Answer the user's question USING ONLY EXACT FACTS explicitly stated in the Context Documents below.\n"
-                "Do NOT extrapolate or assume anything. Quote or closely rephrase source sentences, and cite [Document X]."
+                "Do NOT extrapolate or assume anything. Quote or closely rephrase source sentences."
             )
             refined_resp = await self.model_router.generate_completion(
                 prompt=prompt,
@@ -190,8 +189,7 @@ class AdaptiveEngine:
             "Rules:\n"
             "1. Base your answer ONLY on the information contained in the Context Documents.\n"
             "2. If the answer cannot be determined from the Context Documents, state clearly: 'I cannot find relevant information in the uploaded documents to answer this question.'\n"
-            "3. Always cite sources inline using [Document X] format when stating facts.\n"
-            "4. Be concise, direct, and structured."
+            "3. Be concise, direct, and structured."
         )
 
         history_prompt = ""
