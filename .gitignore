@@ -23,3 +23,5 @@ data/
 .idea/
 .DS_Store
 Thumbs.db
+track.json
+skeleton_track.json

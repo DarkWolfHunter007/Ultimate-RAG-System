@@ -1,13 +1,16 @@
-import fitz  # PyMuPDF
 import os
 import logging
+import zipfile
+import xml.etree.ElementTree as ET
 from collections import Counter
-from typing import List, Dict, Any
+from typing import Any
+
+import fitz  # PyMuPDF
 
 logger = logging.getLogger(__name__)
 
 
-def parse_file(file_path: str, filename: str) -> List[Dict[str, Any]]:
+def parse_file(file_path: str, filename: str) -> list[dict[str, Any]]:
     ext = os.path.splitext(filename)[1].lower()
     if ext == ".pdf":
         return _parse_pdf(file_path, filename)
@@ -17,28 +20,26 @@ def parse_file(file_path: str, filename: str) -> List[Dict[str, Any]]:
         return _parse_text(file_path, filename)
 
 
-def _parse_pdf(file_path: str, filename: str) -> List[Dict[str, Any]]:
+def _parse_pdf(file_path: str, filename: str) -> list[dict[str, Any]]:
     doc = fitz.open(file_path)
     pages = []
     all_doc_sizes = []
 
-    # Pass 1: Character-weighted font size collection (weights by char length to prevent
-    # footnote markers / page numbers from biasing the mode)
+    # Pass 1: Character-weighted font size collection
     for page in doc:
         for b in page.get_text("dict").get("blocks", []):
             for line in b.get("lines", []):
                 for span in line.get("spans", []):
                     txt = span.get("text", "").strip()
-                    if txt and len(txt) >= 3:  # skip very short spans (page numbers, markers)
+                    if txt and len(txt) >= 3:
                         sz = round(span.get("size", 10.0), 1)
                         all_doc_sizes.extend([sz] * len(txt))
 
-    # Resolve modal size; fall back to median if top-2 sizes are too close (no clear body mode)
+    # Resolve modal size; fall back to median if top-2 sizes are too close
     if all_doc_sizes:
         size_counts = Counter(all_doc_sizes)
         top_two = size_counts.most_common(2)
         if len(top_two) > 1 and top_two[0][1] < top_two[1][1] * 3:
-            # No dominant mode — use sorted median as stable baseline
             sorted_sizes = sorted(all_doc_sizes)
             modal_size = sorted_sizes[len(sorted_sizes) // 2]
         else:
@@ -63,34 +64,35 @@ def _parse_pdf(file_path: str, filename: str) -> List[Dict[str, Any]]:
                     if max_span_size > (modal_size * 1.15) and len(line_str.split()) < 14 and not line_str.startswith("#"):
                         block_text += f"\n# {line_str}\n"
                     else:
-                        block_text += f" {line_str}"
+                        # Use newline to preserve lists and table structures in PDF blocks
+                        block_text += f"\n{line_str}"
 
             if block_text.strip():
                 lines.append(block_text.strip())
 
-        full_page_text = "\n\n".join(lines)
-        if full_page_text.strip():
+        full_page_text = "\n\n".join(lines).strip()
+        if full_page_text:
             pages.append({
-                "content": full_page_text.strip(),
+                "content": full_page_text,
                 "metadata": {"source": filename, "page": i + 1, "type": "pdf"}
             })
     return pages
 
 
-def _parse_docx(file_path: str, filename: str) -> List[Dict[str, Any]]:
+def _parse_docx(file_path: str, filename: str) -> list[dict[str, Any]]:
     # 1. Try python-docx if installed
     try:
         import docx
         doc = docx.Document(file_path)
         elements = []
         body_elements = list(doc.element.body)
-        consumed_indices: set = set()
+        consumed_indices = set()
 
         for idx, element in enumerate(body_elements):
             if idx in consumed_indices:
                 continue
 
-            tag_name = element.tag.split("}")[-1] if "}" in element.tag else element.tag
+            tag_name = element.tag.rsplit("}", 1)[-1]
 
             if tag_name == "p":
                 p = docx.text.paragraph.Paragraph(element, doc)
@@ -106,14 +108,12 @@ def _parse_docx(file_path: str, filename: str) -> List[Dict[str, Any]]:
             elif tag_name == "tbl":
                 table = docx.table.Table(element, doc)
 
-                # Look for preceding caption
                 caption = ""
                 if idx > 0 and body_elements[idx - 1].tag.endswith("p"):
                     prev_txt = docx.text.paragraph.Paragraph(body_elements[idx - 1], doc).text.strip()
                     if any(prev_txt.lower().startswith(prefix) for prefix in ["table", "tab.", "figure", "fig."]):
                         caption = prev_txt
 
-                # Look for trailing caption and mark it consumed so it isn't emitted again
                 if not caption and idx + 1 < len(body_elements) and body_elements[idx + 1].tag.endswith("p"):
                     next_txt = docx.text.paragraph.Paragraph(body_elements[idx + 1], doc).text.strip()
                     if any(next_txt.lower().startswith(prefix) for prefix in ["table", "tab.", "figure", "fig."]):
@@ -122,8 +122,7 @@ def _parse_docx(file_path: str, filename: str) -> List[Dict[str, Any]]:
 
                 table_rows = []
                 for row_idx, row in enumerate(table.rows):
-                    # Use object identity to deduplicate merged (rowspan/colspan) cells
-                    seen_cell_ids: set = set()
+                    seen_cell_ids = set()
                     row_cells = []
                     for cell in row.cells:
                         if id(cell) not in seen_cell_ids:
@@ -140,16 +139,14 @@ def _parse_docx(file_path: str, filename: str) -> List[Dict[str, Any]]:
                         table_md = f"**{caption}**\n{table_md}"
                     elements.append(table_md)
 
-        full_text = "\n\n".join(elements)
-        if full_text.strip():
-            return [{"content": full_text.strip(), "metadata": {"source": filename, "page": 1, "type": "docx"}}]
+        full_text = "\n\n".join(elements).strip()
+        if full_text:
+            return [{"content": full_text, "metadata": {"source": filename, "page": 1, "type": "docx"}}]
     except Exception:
         pass
 
-    # 2. Native stdlib zipfile + XML fallback (zero dependencies required)
+    # 2. Native stdlib zipfile + XML fallback
     try:
-        import zipfile
-        import xml.etree.ElementTree as ET
         with zipfile.ZipFile(file_path, "r") as z:
             xml_content = z.read("word/document.xml")
         root = ET.fromstring(xml_content)
@@ -163,11 +160,9 @@ def _parse_docx(file_path: str, filename: str) -> List[Dict[str, Any]]:
     return _parse_text(file_path, filename)
 
 
-def _parse_text(file_path: str, filename: str) -> List[Dict[str, Any]]:
+def _parse_text(file_path: str, filename: str) -> list[dict[str, Any]]:
     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read().strip()
     if not content:
         return []
     return [{"content": content, "metadata": {"source": filename, "page": 1, "type": "text"}}]
-
-

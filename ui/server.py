@@ -1,17 +1,17 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import logging
-import asyncio
 import os
 import shutil
 import time
-import httpx
-from typing import List, Dict, Any, Optional
+import logging
+import asyncio
+from contextlib import asynccontextmanager
+from typing import Any, Optional
 
-logger = logging.getLogger(__name__)
+import httpx
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from core.config_manager import ConfigManager, CustomModel
 from core.chat_manager import ChatManager
@@ -21,15 +21,7 @@ from ingestion.semantic_chunker import SemanticChunker
 from ingestion.vector_indexer import VectorIndexer
 from retrieval.bm25_engine import BM25Engine
 
-app = FastAPI(title="Ultimate-RAG-System API", version="1.0.1")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+logger = logging.getLogger(__name__)
 
 # Initialize Core Services
 vector_indexer = VectorIndexer()
@@ -38,28 +30,6 @@ adaptive_engine = AdaptiveEngine(vector_indexer, bm25_engine)
 config_mgr = ConfigManager()
 chat_mgr = ChatManager()
 
-class QueryRequest(BaseModel):
-    query: str
-    chat_id: Optional[str] = None
-
-
-
-class AddModelRequest(BaseModel):
-    id: str
-    name: str
-    provider: str = "openrouter"
-    type: str = "llm"
-
-class PingModelRequest(BaseModel):
-    provider: str = "openrouter"
-    model: str
-    type: Optional[str] = "llm"  # "llm" or "embedding"
-    openrouter_api_key: Optional[str] = None
-    ollama_base_url: Optional[str] = None
-
-class ResetConfigRequest(BaseModel):
-    clear_credentials: bool = False
-    clear_custom_models: bool = False
 
 async def detect_and_store_embedding_dimension() -> Optional[int]:
     """Pings active embedding model to determine vector dimension and persists to system_config.json."""
@@ -76,25 +46,67 @@ async def detect_and_store_embedding_dimension() -> Optional[int]:
         logger.info(f"Embedding dimension detection note: {e}")
     return None
 
-@app.on_event("startup")
-async def startup_event():
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     await detect_and_store_embedding_dimension()
+    yield
+
+
+app = FastAPI(title="Ultimate-RAG-System API", version="1.0.1", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class QueryRequest(BaseModel):
+    query: str
+    chat_id: Optional[str] = None
+
+
+class AddModelRequest(BaseModel):
+    id: str
+    name: str
+    provider: str = "openrouter"
+    type: str = "llm"
+
+
+class PingModelRequest(BaseModel):
+    provider: str = "openrouter"
+    model: str
+    type: Optional[str] = "llm"
+    openrouter_api_key: Optional[str] = None
+    ollama_base_url: Optional[str] = None
+
+
+class ResetConfigRequest(BaseModel):
+    clear_credentials: bool = False
+    clear_custom_models: bool = False
+
 
 @app.get("/api/config")
 async def get_config():
     return config_mgr.get_config().model_dump()
 
+
 @app.post("/api/config")
-async def update_config(req: Dict[str, Any]):
+async def update_config(req: dict[str, Any]):
     updated = config_mgr.update_config(req)
     if "embedding_model" in req or "provider" in req:
         asyncio.create_task(detect_and_store_embedding_dimension())
     return updated.model_dump()
 
+
 @app.post("/api/config/reset")
 async def reset_config(req: ResetConfigRequest):
-    updated = config_mgr.reset_config(clear_credentials=req.clear_credentials, clear_custom_models=req.clear_custom_models)
+    updated = config_mgr.reset_config(clear_credentials=req.clear_credentials)
     return updated.model_dump()
+
 
 @app.post("/api/models")
 async def add_custom_model(req: AddModelRequest):
@@ -102,10 +114,12 @@ async def add_custom_model(req: AddModelRequest):
     updated = config_mgr.add_model(model)
     return updated.model_dump()
 
+
 @app.delete("/api/models/{model_id:path}")
 async def remove_custom_model(model_id: str):
     updated = config_mgr.remove_model(model_id)
     return updated.model_dump()
+
 
 @app.post("/api/models/ping")
 async def ping_model(req: PingModelRequest):
@@ -124,22 +138,19 @@ async def ping_model(req: PingModelRequest):
                 "latency_ms": 0,
                 "message": "Missing OpenRouter API Key. Please configure your API key first."
             }
-        
+
         headers = {
             "Authorization": f"Bearer {key.strip()}",
             "HTTP-Referer": "https://github.com/Ultimate-RAG-System",
             "X-Title": "Ultimate RAG System",
             "Content-Type": "application/json"
         }
-        
+
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 if is_embedding:
                     endpoint = f"{cfg.openrouter_base_url}/embeddings"
-                    payload = {
-                        "model": req.model,
-                        "input": ["ping"]
-                    }
+                    payload = {"model": req.model, "input": ["ping"]}
                 else:
                     endpoint = f"{cfg.openrouter_base_url}/chat/completions"
                     payload = {
@@ -162,38 +173,17 @@ async def ping_model(req: PingModelRequest):
 
                     msg = f"Success ({elapsed_ms}ms)! Embedding model '{req.model}' is valid (Dimension: {dimension}d)." if is_embedding and dimension else f"Success ({elapsed_ms}ms)! Model '{req.model}' is valid and responding."
 
-                    return {
-                        "status": "ok",
-                        "latency_ms": elapsed_ms,
-                        "dimension": dimension,
-                        "message": msg
-                    }
+                    return {"status": "ok", "latency_ms": elapsed_ms, "dimension": dimension, "message": msg}
                 elif resp.status_code == 401:
-                    return {
-                        "status": "error",
-                        "latency_ms": elapsed_ms,
-                        "message": "Unauthorized (401): Invalid OpenRouter API Key."
-                    }
+                    return {"status": "error", "latency_ms": elapsed_ms, "message": "Unauthorized (401): Invalid OpenRouter API Key."}
                 elif resp.status_code == 404:
-                    return {
-                        "status": "error",
-                        "latency_ms": elapsed_ms,
-                        "message": f"Not Found (404): Model '{req.model}' was not found on OpenRouter."
-                    }
+                    return {"status": "error", "latency_ms": elapsed_ms, "message": f"Not Found (404): Model '{req.model}' was not found on OpenRouter."}
                 else:
                     err_msg = resp.json().get("error", {}).get("message", resp.text[:120])
-                    return {
-                        "status": "error",
-                        "latency_ms": elapsed_ms,
-                        "message": f"Error [{resp.status_code}]: {err_msg}"
-                    }
+                    return {"status": "error", "latency_ms": elapsed_ms, "message": f"Error [{resp.status_code}]: {err_msg}"}
         except Exception as e:
             elapsed_ms = round((time.time() - start_time) * 1000)
-            return {
-                "status": "error",
-                "latency_ms": elapsed_ms,
-                "message": f"Connection Error: {str(e)[:150]}"
-            }
+            return {"status": "error", "latency_ms": elapsed_ms, "message": f"Connection Error: {str(e)[:150]}"}
 
     elif provider == "ollama":
         if is_embedding:
@@ -215,18 +205,10 @@ async def ping_model(req: PingModelRequest):
                             "message": f"Success ({elapsed_ms}ms)! Ollama embedding '{model_short}' active (Dimension: {dimension}d)."
                         }
                     else:
-                        return {
-                            "status": "error",
-                            "latency_ms": elapsed_ms,
-                            "message": f"Ollama Error [{resp.status_code}]: {resp.text[:120]}"
-                        }
+                        return {"status": "error", "latency_ms": elapsed_ms, "message": f"Ollama Error [{resp.status_code}]: {resp.text[:120]}"}
             except Exception as e:
                 elapsed_ms = round((time.time() - start_time) * 1000)
-                return {
-                    "status": "error",
-                    "latency_ms": elapsed_ms,
-                    "message": f"Ollama Connection Failed ({ollama_url}): Ensure model '{model_short}' is installed."
-                }
+                return {"status": "error", "latency_ms": elapsed_ms, "message": f"Ollama Connection Failed ({ollama_url}): Ensure model '{model_short}' is installed."}
         else:
             target_url = f"{ollama_url.rstrip('/')}/api/tags"
             try:
@@ -245,50 +227,32 @@ async def ping_model(req: PingModelRequest):
                                 "message": f"Success ({elapsed_ms}ms)! Ollama host reachable." + (f" Model '{model_short}' is installed." if found else " Server online.")
                             }
                         else:
-                            return {
-                                "status": "warning",
-                                "latency_ms": elapsed_ms,
-                                "message": f"Ollama reachable, but model '{model_short}' was not found in `ollama list`."
-                            }
+                            return {"status": "warning", "latency_ms": elapsed_ms, "message": f"Ollama reachable, but model '{model_short}' was not found in `ollama list`."}
                     else:
-                        return {
-                            "status": "error",
-                            "latency_ms": elapsed_ms,
-                            "message": f"Ollama Error [{resp.status_code}]: {resp.text[:120]}"
-                        }
+                        return {"status": "error", "latency_ms": elapsed_ms, "message": f"Ollama Error [{resp.status_code}]: {resp.text[:120]}"}
             except Exception as e:
                 elapsed_ms = round((time.time() - start_time) * 1000)
-                return {
-                    "status": "error",
-                    "latency_ms": elapsed_ms,
-                    "message": f"Ollama Connection Failed ({ollama_url}): Ensure Ollama is running."
-                }
+                return {"status": "error", "latency_ms": elapsed_ms, "message": f"Ollama Connection Failed ({ollama_url}): Ensure Ollama is running."}
 
-    return {
-        "status": "error",
-        "latency_ms": 0,
-        "message": f"Unknown provider: {provider}"
-    }
+    return {"status": "error", "latency_ms": 0, "message": f"Unknown provider: {provider}"}
 
 
 @app.get("/api/stats")
 async def get_stats():
     count = vector_indexer.count()
     tier, _ = adaptive_engine.get_corpus_tier()
-    return {
-        "total_chunks": count,
-        "corpus_tier": tier
-    }
+    return {"total_chunks": count, "corpus_tier": tier}
 
-# Persistent documents directory
+
 DOCUMENTS_DIR = "./data/documents"
 os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+
 
 @app.get("/api/documents")
 async def list_documents():
     if not os.path.exists(DOCUMENTS_DIR):
         return []
-    
+
     all_chunks = vector_indexer.get_all_chunks()
     chunk_counts = {}
     for c in all_chunks:
@@ -315,6 +279,7 @@ async def list_documents():
     docs.sort(key=lambda x: x["modified_at"], reverse=True)
     return docs
 
+
 @app.delete("/api/documents/{filename}")
 async def delete_document(filename: str):
     fpath = os.path.join(DOCUMENTS_DIR, filename)
@@ -323,18 +288,18 @@ async def delete_document(filename: str):
             os.remove(fpath)
         except Exception as e:
             logger.warning(f"Could not remove document file '{filename}': {e}")
-    
-    # Delete chunks from ChromaDB & reindex BM25
+
     vector_indexer.delete_by_source(filename)
     all_remaining = vector_indexer.get_all_chunks()
     bm25_engine.index_chunks(all_remaining)
-    
+
     tier, total = adaptive_engine.get_corpus_tier()
     return {
         "message": f"Successfully deleted '{filename}' and purged its vector chunks.",
         "total_chunks": total,
         "corpus_tier": tier
     }
+
 
 @app.post("/api/clear")
 async def clear_index():
@@ -350,30 +315,29 @@ async def clear_index():
                     pass
     return {"message": "Corpus index and uploaded files successfully cleared."}
 
+
 _upload_lock = asyncio.Lock()
-chunking_status: Dict[str, Any] = {
+chunking_status: dict[str, Any] = {
     "active": False,
     "total_chunks": 0,
     "corpus_tier": "Nano",
     "files": []
 }
 
+
 @app.get("/api/upload/status")
 async def get_upload_status():
     return chunking_status
 
+
 @app.post("/api/upload")
-async def upload_documents(files: List[UploadFile] = File(...)):
+async def upload_documents(files: list[UploadFile] = File(...)):
     async with _upload_lock:
         initial_tier, initial_chunks = adaptive_engine.get_corpus_tier()
 
         file_items = [
-            {
-                "filename": f.filename,
-                "status": "Queued",
-                "percent": 0,
-                "chunks": 0
-            } for f in files
+            {"filename": f.filename, "status": "Queued", "percent": 0, "chunks": 0}
+            for f in files
         ]
 
         chunking_status.update({
@@ -388,7 +352,7 @@ async def upload_documents(files: List[UploadFile] = File(...)):
         successful_files = 0
         errors = []
 
-        BATCH_SIZE = 20  # Micro-batch size to prevent memory overload & HTTP timeouts
+        BATCH_SIZE = 20
 
         for idx, file in enumerate(files):
             file_path = os.path.join(DOCUMENTS_DIR, file.filename)
@@ -396,11 +360,9 @@ async def upload_documents(files: List[UploadFile] = File(...)):
             file_items[idx]["percent"] = 15
 
             try:
-                # 1. Save file to disk
                 with open(file_path, "wb") as buffer:
                     shutil.copyfileobj(file.file, buffer)
 
-                # 2. Parse & Chunk document
                 file_items[idx]["status"] = "Chunking..."
                 file_items[idx]["percent"] = 40
 
@@ -416,7 +378,6 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                 file_items[idx]["status"] = f"Embedding {len(file_chunks)} chunks..."
                 file_items[idx]["percent"] = 60
 
-                # 3. Micro-batch embedding generation
                 file_embeddings = []
                 chunk_texts = [c["content"] for c in file_chunks]
 
@@ -440,7 +401,6 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                         f"Please check your API key or active embedding provider settings."
                     )
 
-                # 4. Add file chunks to ChromaDB
                 vector_indexer.add_chunks(file_chunks, embeddings=file_embeddings)
 
                 total_indexed_chunks += len(file_chunks)
@@ -458,7 +418,6 @@ async def upload_documents(files: List[UploadFile] = File(...)):
                 file_items[idx]["status"] = "Error"
                 file_items[idx]["percent"] = 100
 
-        # 5. Re-index BM25 with full updated corpus
         if successful_files > 0:
             all_existing = vector_indexer.get_all_chunks()
             bm25_engine.index_chunks(all_existing)
@@ -484,14 +443,17 @@ async def upload_documents(files: List[UploadFile] = File(...)):
 class CreateChatRequest(BaseModel):
     title: Optional[str] = None
 
+
 @app.get("/api/chats")
 async def list_chats():
     return chat_mgr.list_chats()
+
 
 @app.post("/api/chats")
 async def create_chat(req: Optional[CreateChatRequest] = None):
     title = req.title if req else None
     return chat_mgr.create_chat(title=title)
+
 
 @app.get("/api/chats/{chat_id}")
 async def get_chat(chat_id: str):
@@ -500,12 +462,14 @@ async def get_chat(chat_id: str):
         raise HTTPException(status_code=404, detail="Chat session not found")
     return chat
 
+
 @app.delete("/api/chats/{chat_id}")
 async def delete_chat(chat_id: str):
     success = chat_mgr.delete_chat(chat_id)
     if not success:
         raise HTTPException(status_code=404, detail="Chat session not found")
     return {"message": "Chat session deleted successfully"}
+
 
 @app.post("/api/query")
 async def query_rag(req: QueryRequest):
@@ -521,15 +485,13 @@ async def query_rag(req: QueryRequest):
 
     try:
         res = await adaptive_engine.execute_rag_pipeline(req.query, chat_history=chat_history)
-        
+
         if chat_id:
-            # Store user message
             chat_mgr.add_message(chat_id, {
                 "id": f"msg_u_{int(time.time()*1000)}",
                 "role": "user",
                 "content": req.query
             })
-            # Store assistant response
             chat_mgr.add_message(chat_id, {
                 "id": f"msg_a_{int(time.time()*1000)}",
                 "role": "assistant",
@@ -545,10 +507,29 @@ async def query_rag(req: QueryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Static Files serving
+
+@app.post("/api/query/stream")
+async def query_rag_stream(req: QueryRequest):
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty.")
+
+    chat_id = req.chat_id
+    chat_history = None
+    if chat_id:
+        chat = chat_mgr.get_chat(chat_id)
+        if chat:
+            chat_history = chat.get("messages", [])
+
+    return StreamingResponse(
+        adaptive_engine.execute_rag_stream(req.query, chat_history=chat_history),
+        media_type="text/event-stream"
+    )
+
+
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():

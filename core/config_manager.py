@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -12,19 +12,19 @@ class CustomModel(BaseModel):
     id: str
     name: str
     provider: str = "openrouter"  # "openrouter" or "ollama"
-    type: str = "llm"  # "llm" or "embedding"
+    type: str = "llm"             # "llm" or "embedding"
 
-def get_default_models() -> List[CustomModel]:
+def get_default_models() -> list[CustomModel]:
     return [
-        CustomModel(id="google/gemini-2.0-flash-lite-001", name="⚡ Gemini 2.0 Flash Lite", provider="openrouter", type="llm"),
-        CustomModel(id="meta-llama/llama-3.3-70b-instruct", name="🧠 Llama 3.3 70B Instruct", provider="openrouter", type="llm"),
-        CustomModel(id="deepseek/deepseek-r1:free", name="🔬 DeepSeek R1 (Free)", provider="openrouter", type="llm"),
-        CustomModel(id="anthropic/claude-3.5-sonnet", name="🎭 Claude 3.5 Sonnet", provider="openrouter", type="llm"),
-        CustomModel(id="openai/gpt-4o-mini", name="⚡ GPT-4o Mini", provider="openrouter", type="llm"),
-        CustomModel(id="llama3.2", name="🦙 Ollama Llama 3.2 (Local)", provider="ollama", type="llm"),
-        CustomModel(id="mistral", name="🌋 Ollama Mistral (Local)", provider="ollama", type="llm"),
-        CustomModel(id="nomic-embed-text", name="📐 Ollama Nomic Embed (Local)", provider="ollama", type="embedding"),
-        CustomModel(id="nvidia/nemotron-3-embed-1b:free", name="📐 Nemotron Embed 1B (Free)", provider="openrouter", type="embedding"),
+        CustomModel(id="google/gemini-2.0-flash-lite-001",    name="⚡ Gemini 2.0 Flash Lite",       provider="openrouter", type="llm"),
+        CustomModel(id="meta-llama/llama-3.3-70b-instruct",   name="🧠 Llama 3.3 70B Instruct",      provider="openrouter", type="llm"),
+        CustomModel(id="deepseek/deepseek-r1:free",           name="🔬 DeepSeek R1 (Free)",           provider="openrouter", type="llm"),
+        CustomModel(id="anthropic/claude-3.5-sonnet",         name="🎭 Claude 3.5 Sonnet",            provider="openrouter", type="llm"),
+        CustomModel(id="openai/gpt-4o-mini",                  name="⚡ GPT-4o Mini",                  provider="openrouter", type="llm"),
+        CustomModel(id="llama3.2",                            name="🦙 Ollama Llama 3.2 (Local)",     provider="ollama",     type="llm"),
+        CustomModel(id="mistral",                             name="🌋 Ollama Mistral (Local)",       provider="ollama",     type="llm"),
+        CustomModel(id="nomic-embed-text",                    name="📐 Ollama Nomic Embed (Local)",   provider="ollama",     type="embedding"),
+        CustomModel(id="nvidia/nemotron-3-embed-1b:free",     name="📐 Nemotron Embed 1B (Free)",     provider="openrouter", type="embedding"),
     ]
 
 class SystemConfig(BaseModel):
@@ -33,21 +33,21 @@ class SystemConfig(BaseModel):
     openrouter_api_key: str = Field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
     openrouter_base_url: str = Field(default="https://openrouter.ai/api/v1")
     ollama_base_url: str = Field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
-    
+
     # Selected Models & Dynamic Properties
     llm_model: str = Field(default="google/gemini-2.0-flash-lite-001")
     embedding_model: str = Field(default="nvidia/nemotron-3-embed-1b:free")
     embedding_dimension: Optional[int] = Field(default=None, description="Active embedding model vector dimension (e.g. 384, 1536, 2048)")
-    
+
     # Registered Models List
-    custom_models: List[CustomModel] = Field(default_factory=get_default_models)
+    custom_models: list[CustomModel] = Field(default_factory=get_default_models)
 
     # Retrieval Tuning Controls
     hybrid_alpha: float = Field(default=0.5, ge=0.0, le=1.0, description="1.0 = Dense only, 0.0 = BM25 only")
     mmr_lambda: float = Field(default=0.5, ge=0.0, le=1.0, description="1.0 = Max relevance, 0.0 = Max diversity")
     top_k_candidates: int = Field(default=20, ge=5, le=100)
     top_n_final: int = Field(default=5, ge=1, le=20)
-    
+
     # Feature Toggles
     enable_reranker: bool = Field(default=False)
     enable_hyde: bool = Field(default=False)
@@ -62,7 +62,6 @@ class ConfigManager:
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         self.config = self._load_from_file()
 
-
     def _load_from_file(self) -> SystemConfig:
         if os.path.exists(self.file_path):
             try:
@@ -74,21 +73,19 @@ class ConfigManager:
                     return SystemConfig(**data)
             except Exception as e:
                 logger.warning(f"Could not load config file ({e}). Initializing default config.")
-        
-        cfg = SystemConfig()
-        self._save_to_file(cfg)
-        return cfg
 
-    def _save_to_file(self, cfg: SystemConfig = None) -> None:
-        if cfg is None:
-            cfg = self.config
+        self.config = SystemConfig()
+        self._save_to_file()
+        return self.config
+
+    def _save_to_file(self) -> None:
         try:
             with open(self.file_path, "w", encoding="utf-8") as f:
-                json.dump(cfg.model_dump(), f, indent=2)
+                json.dump(self.config.model_dump(), f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save config file ({self.file_path}): {e}")
 
-    def update_config(self, updates: Dict[str, Any]) -> SystemConfig:
+    def update_config(self, updates: dict[str, Any]) -> SystemConfig:
         current_dict = self.config.model_dump()
         current_dict.update({k: v for k, v in updates.items() if v is not None})
         self.config = SystemConfig(**current_dict)
@@ -96,11 +93,9 @@ class ConfigManager:
         return self.config
 
     def add_model(self, model: CustomModel) -> SystemConfig:
-        existing = [m for m in self.config.custom_models if m.id == model.id]
-        if existing:
-            existing[0].name = model.name
-            existing[0].provider = model.provider
-            existing[0].type = model.type
+        m = next((m for m in self.config.custom_models if m.id == model.id), None)
+        if m:
+            m.name, m.provider, m.type = model.name, model.provider, model.type
         else:
             self.config.custom_models.append(model)
         self._save_to_file()
@@ -111,12 +106,10 @@ class ConfigManager:
         self._save_to_file()
         return self.config
 
-    def reset_config(self, clear_credentials: bool = False, clear_custom_models: bool = False) -> SystemConfig:
+    def reset_config(self, clear_credentials: bool = False) -> SystemConfig:
         self.config = SystemConfig()
         if clear_credentials:
             self.config.openrouter_api_key = ""
-        if clear_custom_models:
-            self.config.custom_models = get_default_models()
         self._save_to_file()
         return self.config
 
@@ -124,4 +117,3 @@ class ConfigManager:
         if not self.config.openrouter_api_key:
             self.config.openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
         return self.config
-

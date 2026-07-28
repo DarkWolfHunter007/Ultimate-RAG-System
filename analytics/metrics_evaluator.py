@@ -1,7 +1,7 @@
-from typing import List, Dict, Any
+from typing import Any
 
 
-def evaluate_metrics(query: str, response: str, contexts: List[Dict[str, Any]]) -> Dict[str, float]:
+def evaluate_metrics(query: str, response: str, contexts: list[dict[str, Any]]) -> dict[str, float]:
     """Calculates quantitative RAG evaluation metrics (Faithfulness, Precision, Recall)."""
     if not contexts or not response:
         return {"faithfulness": 0.0, "context_precision": 0.0, "context_recall": 0.0}
@@ -26,5 +26,3 @@ def evaluate_metrics(query: str, response: str, contexts: List[Dict[str, Any]]) 
         "context_precision": min(1.0, max(0.0, context_precision)),
         "context_recall": min(1.0, max(0.0, context_recall))
     }
-
-

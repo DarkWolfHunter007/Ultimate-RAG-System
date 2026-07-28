@@ -1,191 +1,217 @@
-import asyncio
 import time
+import asyncio
 import logging
-from typing import List, Dict, Any, Tuple, Optional
+from typing import Any, Optional, AsyncGenerator
 from core.config_manager import ConfigManager
 from core.router import ModelRouter
 from ingestion.vector_indexer import VectorIndexer
 from retrieval.bm25_engine import BM25Engine
 from retrieval.hybrid_fusion import fuse_rrf, apply_mmr
-from retrieval.hyde import generate_hypothetical_document
 from retrieval.reranker import rerank
+from retrieval.hyde import generate_hypothetical_document
+from retrieval.query_expander import expand_query
 from analytics.telemetry_logger import TelemetryLogger
 from analytics.metrics_evaluator import evaluate_metrics
-from retrieval.query_expander import expand_query
 
 logger = logging.getLogger(__name__)
 
 
 class AdaptiveEngine:
-    """Dynamic Adaptive Search Engine that scales search algorithms based on corpus size."""
+    """
+    Adaptive RAG Orchestrator.
+    Manages multi-query expansion, hybrid RRF fusion, neural reranking, MMR diversity,
+    small-to-big parent resolution, self-RAG corrective evaluation, and real-time streaming.
+    """
 
     def __init__(self, vector_indexer: VectorIndexer, bm25_engine: BM25Engine):
+        self.config_mgr = ConfigManager()
         self.vector_indexer = vector_indexer
         self.bm25_engine = bm25_engine
-        self.config_mgr = ConfigManager()
         self.model_router = ModelRouter()
 
-    def get_corpus_tier(self) -> Tuple[str, int]:
+    def get_corpus_tier(self) -> tuple[str, int]:
         total_chunks = self.vector_indexer.count()
         if total_chunks < 50:
-            return ("Nano", total_chunks)
+            return "Nano", total_chunks
         elif total_chunks <= 5000:
-            return ("Standard", total_chunks)
+            return "Standard", total_chunks
         else:
-            return ("Enterprise", total_chunks)
+            return "Enterprise", total_chunks
 
-    async def _embed_query(self, q: str) -> Optional[List[float]]:
-        """Embed a single query string; returns None on failure (falls back to text search)."""
+    async def _embed_query(self, q: str) -> Optional[list[float]]:
         try:
             emb_res = await self.model_router.generate_embeddings([q])
-            return emb_res[0] if emb_res else None
+            return emb_res[0] if (emb_res and len(emb_res) > 0) else None
         except Exception as e:
-            logger.info(f"Query embedding fallback for '{q[:40]}': {e}")
+            logger.warning(f"Failed to generate query embedding for '{q[:30]}...': {e}")
             return None
 
-    async def execute_rag_pipeline(self, query: str, chat_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
-        telemetry = TelemetryLogger(query_id=f"q_{int(time.time()*1000)}")
+    async def _prepare_rag_context(self, query: str, chat_history: Optional[list[dict[str, Any]]] = None) -> tuple[list[dict[str, Any]], str, TelemetryLogger, str, int]:
+        telemetry = TelemetryLogger()
         cfg = self.config_mgr.get_config()
-        tier, chunk_count = self.get_corpus_tier()
+        tier, total_chunks = self.get_corpus_tier()
 
-        # 1. Multi-Query Expansion & HyDE Check
-        search_queries = [query]
-        if cfg.enable_hyde or tier == "Enterprise":
-            t0 = time.perf_counter()
-            hyde_doc = await generate_hypothetical_document(query, self.model_router)
-            search_queries.append(hyde_doc)
-            telemetry.log_span("HyDE Synthesis", (time.perf_counter() - t0) * 1000, f"Expanded via {cfg.llm_model}")
+        t0 = time.perf_counter()
+        query_variants = [query]
+
+        if cfg.enable_hyde:
+            hypo_doc = await generate_hypothetical_document(query, self.model_router)
+            query_variants = [hypo_doc]
+            telemetry.log_span("HyDE Generation", (time.perf_counter() - t0) * 1000, f"Hypothetical Doc: {hypo_doc[:60]}...")
         else:
-            t_exp = time.perf_counter()
-            search_queries = await expand_query(query, self.model_router)
-            telemetry.log_span("Multi-Query Expansion", (time.perf_counter() - t_exp) * 1000, f"Generated {len(search_queries)} query variants")
+            expanded = await expand_query(query, self.model_router)
+            query_variants = list(set([query] + expanded))
+            telemetry.log_span("Multi-Query Expansion", (time.perf_counter() - t0) * 1000, f"Generated {len(query_variants)} variants")
 
-        # 2. Parallel embedding + search across all query variants.
-        #    asyncio.gather fires all embedding API calls concurrently instead of sequentially,
-        #    cutting p95 latency by ~50-70% when search_queries has multiple variants.
-        t_vec = time.perf_counter()
-        embeddings: List[Optional[List[float]]] = await asyncio.gather(
-            *[self._embed_query(q) for q in search_queries]
+        t_search = time.perf_counter()
+        embeddings: list[Optional[list[float]]] = await asyncio.gather(
+            *[self._embed_query(q) for q in query_variants]
         )
 
-        all_dense: List[Dict[str, Any]] = []
-        all_sparse: List[Dict[str, Any]] = []
-        for q_var, emb in zip(search_queries, embeddings):
-            d_res = self.vector_indexer.search_vector(query_text=q_var, top_k=cfg.top_k_candidates, query_embedding=emb)
-            s_res = self.bm25_engine.search(query=q_var, top_k=cfg.top_k_candidates)
-            all_dense.extend(d_res)
-            all_sparse.extend(s_res)
+        all_dense: list[dict[str, Any]] = []
+        all_sparse: list[dict[str, Any]] = []
 
-        telemetry.log_span("Multi-Query Dense Search", (time.perf_counter() - t_vec) * 1000, f"Fetched {len(all_dense)} total hits ({len(search_queries)} queries in parallel)")
+        for q, q_emb in zip(query_variants, embeddings):
+            dense = self.vector_indexer.search_vector(query_text=q, top_k=cfg.top_k_candidates, query_embedding=q_emb)
+            sparse = self.bm25_engine.search(query=q, top_k=cfg.top_k_candidates)
+            all_dense.extend(dense)
+            all_sparse.extend(sparse)
 
-        # 3. Hybrid Reciprocal Rank Fusion
-        t_rrf = time.perf_counter()
-        fused_candidates = fuse_rrf(dense_results=all_dense, sparse_results=all_sparse, alpha=cfg.hybrid_alpha)
-        telemetry.log_span("RAG-Fusion & RRF", (time.perf_counter() - t_rrf) * 1000, f"Alpha={cfg.hybrid_alpha}")
+        telemetry.log_span("Hybrid Vector + BM25 Search", (time.perf_counter() - t_search) * 1000, f"Aggregated {len(all_dense)} vector & {len(all_sparse)} BM25 hits across variants")
 
-        # 4. Optional Cross-Encoder Reranker
-        if (cfg.enable_reranker or tier == "Enterprise") and fused_candidates:
-            t_rerank = time.perf_counter()
+        t_fusion = time.perf_counter()
+        fused_candidates = fuse_rrf(all_dense, all_sparse, alpha=cfg.hybrid_alpha, k=60)
+        telemetry.log_span("RRF Hybrid Fusion", (time.perf_counter() - t_fusion) * 1000, f"Fused into {len(fused_candidates)} candidates (alpha={cfg.hybrid_alpha})")
+
+        t_rerank = time.perf_counter()
+        if cfg.enable_reranker and fused_candidates:
             fused_candidates = rerank(query, fused_candidates, top_n=cfg.top_k_candidates)
             telemetry.log_span("Cross-Encoder Neural Rerank", (time.perf_counter() - t_rerank) * 1000)
 
-        # 5. MMR Diversity Selection & Full Corpus Fetching for Small/Summary Queries
-        ql = query.lower()
-        if tier == "Nano" or any(w in ql for w in ["summarize", "summary", "all content", "everything", "overview"]):
+        if tier == "Nano" or any(w in query.lower() for w in ["summarize", "summary", "all content", "everything", "overview"]):
             all_chunks = self.vector_indexer.get_all_chunks()
             if len(all_chunks) <= 40:
                 final_contexts = all_chunks
             else:
-                final_contexts = apply_mmr(candidates=fused_candidates, top_n=min(cfg.top_n_final * 2, len(fused_candidates)), mmr_lambda=cfg.mmr_lambda)
+                final_contexts = apply_mmr(fused_candidates, top_n=cfg.top_n_final, mmr_lambda=cfg.mmr_lambda)
         else:
-            final_contexts = apply_mmr(candidates=fused_candidates, top_n=cfg.top_n_final, mmr_lambda=cfg.mmr_lambda)
+            final_contexts = apply_mmr(fused_candidates, top_n=cfg.top_n_final, mmr_lambda=cfg.mmr_lambda)
 
-        # 6. Small-to-Big Parent Content Resolution
-        #    Collect unique parent_ids from child results, batch-fetch from ChromaDB in one call,
-        #    then substitute full parent body into each excerpt. Falls back to child content
-        #    for old chunks (pre-parent-doc fix) that lack a stored parent doc.
+        parent_ids = list({c["metadata"].get("parent_id") for c in final_contexts if c.get("metadata", {}).get("parent_id")})
+        parent_map: dict[str, str] = self.vector_indexer.get_by_ids(parent_ids) if parent_ids else {}
+
+        context_blocks = []
+        for i, c in enumerate(final_contexts, 1):
+            pid = c.get("metadata", {}).get("parent_id")
+            resolved_content = parent_map.get(pid, c["content"]) if pid else c["content"]
+            meta = c.get("metadata", {})
+            src = meta.get("source", "doc")
+            pg = meta.get("page", 1)
+            context_blocks.append(f"[Document {i} | Source: {src} (Page {pg})]\n{resolved_content}")
+
+        formatted_context = "\n\n---\n\n".join(context_blocks)
+        return final_contexts, formatted_context, telemetry, tier, total_chunks
+
+    async def execute_rag_pipeline(self, query: str, chat_history: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
+        cfg = self.config_mgr.get_config()
+        final_contexts, formatted_context, telemetry, tier, total_chunks = await self._prepare_rag_context(query, chat_history)
+
         t_llm = time.perf_counter()
-        parent_ids = list({
-            c["metadata"].get("parent_id", "")
-            for c in final_contexts
-            if c["metadata"].get("parent_id") and c["metadata"].get("chunk_type", "child") == "child"
-        } - {""})
-        parent_map: Dict[str, str] = self.vector_indexer.get_by_ids(parent_ids) if parent_ids else {}
-
-        context_str = ""
-        for idx, c in enumerate(final_contexts, 1):
-            src = c["metadata"].get("source", "doc")
-            pg = c["metadata"].get("page", 1)
-            hd = c["metadata"].get("heading", "")
-            heading_str = f" heading='{hd}'" if hd else ""
-            # Resolution order: ChromaDB parent lookup → child content
-            parent_id = c["metadata"].get("parent_id", "")
-            chunk_body = parent_map.get(parent_id) or c["content"]
-            context_str += f"\n<DOCUMENT_EXCERPT id='{idx}' source='{src}' page='{pg}'{heading_str}>\n{chunk_body}\n</DOCUMENT_EXCERPT>\n"
-
-        history_str = ""
-        if chat_history:
-            for msg in chat_history[-6:]:
-                role_name = "User" if msg.get("role") == "user" else "Assistant"
-                history_str += f"{role_name}: {msg.get('content', '')}\n"
-
-        system_prompt = (
-            "You are Ultimate-RAG-System, an expert AI research assistant. "
-            "Answer the user's question directly, completely, and accurately using the provided <DOCUMENT_EXCERPT> context. "
-            "Synthesize all relevant information into a well-structured response using Markdown (headers, bullet points, bold text). "
-            "Cite your sources inline using bracketed numbers like [1], [2] matching the excerpt IDs. "
-            "Focus on delivering a complete, informative response based on the relevant context provided. Do not waste space explaining what unrelated documents do not say unless asked."
+        system_instruction = (
+            "You are an expert AI Assistant answering user questions strictly using the provided Context Documents.\n"
+            "Rules:\n"
+            "1. Base your answer ONLY on the information contained in the Context Documents.\n"
+            "2. If the answer cannot be determined from the Context Documents, state clearly: 'I cannot find relevant information in the uploaded documents to answer this question.'\n"
+            "3. Always cite sources inline using [Document X] format when stating facts.\n"
+            "4. Be concise, direct, and structured."
         )
 
-        user_prompt = f"DOCUMENT CONTEXT:\n{context_str}\n\n"
-        if history_str:
-            user_prompt += f"RECENT CONVERSATION HISTORY:\n{history_str}\n\n"
-        user_prompt += f"USER QUESTION: {query}"
+        history_prompt = ""
+        if chat_history and len(chat_history) > 0:
+            history_lines = []
+            for m in chat_history[-6:]:
+                role = "User" if m.get("role") == "user" else "Assistant"
+                content = m.get("content", "")
+                history_lines.append(f"{role}: {content}")
+            history_prompt = "Recent Conversation History:\n" + "\n".join(history_lines) + "\n\n"
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(
-                f"[RAG PIPELINE 200 OK] Query: '{query}' | Tier: {tier} | "
-                f"Variants: {len(search_queries)} | RRF Hits: {len(fused_candidates)} | "
-                f"MMR Selected: {len(final_contexts)} | Parents Resolved: {len(parent_map)} | "
-                f"Context: {len(context_str)} chars"
-            )
+        prompt = f"{history_prompt}Context Documents:\n{formatted_context}\n\nUser Question: {query}\n\nAnswer:"
 
         llm_response = await self.model_router.generate_completion(
-            prompt=user_prompt, system_prompt=system_prompt, temperature=0.2, max_tokens=3072
+            prompt=prompt,
+            system_prompt=system_instruction,
+            temperature=0.2
         )
         telemetry.log_span("OpenRouter LLM Synthesis", (time.perf_counter() - t_llm) * 1000, f"Model: {cfg.llm_model}")
 
-        answer_text = (llm_response.get("content") if llm_response else "") or ""
-
-        # 7. Quality & Metrics Evaluation + Self-RAG Corrective Refinement
+        answer_text = llm_response.get("content", "") or ""
         metrics = evaluate_metrics(query, answer_text, final_contexts)
 
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"Metrics: Faithfulness={metrics.get('faithfulness')}, Precision={metrics.get('context_precision')}, Recall={metrics.get('context_recall')}")
+        if cfg.strict_evidence and metrics["faithfulness"] < 0.70 and answer_text:
+            logger.warning(f"Self-RAG Corrective Triggered! Faithfulness score low ({metrics['faithfulness']}). Re-synthesizing with strict grounding...")
+            t_refine = time.perf_counter()
+            strict_system = (
+                "STRICT GROUNDING MODE: You are an ultra-precise Q&A model.\n"
+                "Your previous answer had low faithfulness to the source text.\n"
+                "Answer the user's question USING ONLY EXACT FACTS explicitly stated in the Context Documents below.\n"
+                "Do NOT extrapolate or assume anything. Quote or closely rephrase source sentences, and cite [Document X]."
+            )
+            refined_resp = await self.model_router.generate_completion(
+                prompt=prompt,
+                system_prompt=strict_system,
+                temperature=0.0
+            )
+            telemetry.log_span("Self-RAG Refinement Pass", (time.perf_counter() - t_refine) * 1000)
+            if refined_resp.get("content"):
+                answer_text = refined_resp["content"]
+                metrics = evaluate_metrics(query, answer_text, final_contexts)
 
-        if cfg.strict_evidence and metrics.get("faithfulness", 1.0) < 0.70:
-            t_correct = time.perf_counter()
-            refine_prompt = (
-                f"{user_prompt}\n\n"
-                f"PREVIOUS DRAFT: {answer_text}\n"
-                f"INSTRUCTION: The previous draft contained low-faithfulness statements. Revise the answer to adhere strictly "
-                f"and exclusively to the provided document context excerpts above."
-            )
-            refined_res = await self.model_router.generate_completion(
-                prompt=refine_prompt, system_prompt=system_prompt, temperature=0.1, max_tokens=3072
-            )
-            answer_text = refined_res.get("content", answer_text)
-            metrics = evaluate_metrics(query, answer_text, final_contexts)
-            telemetry.log_span("Self-RAG Corrective Refinement", (time.perf_counter() - t_correct) * 1000)
+        waterfall = telemetry.get_waterfall()
 
         return {
             "query": query,
             "answer": answer_text,
-            "corpus_tier": tier,
-            "total_chunks_indexed": chunk_count,
             "contexts": final_contexts,
-            "telemetry": telemetry.get_waterfall(),
             "metrics": metrics,
+            "telemetry": waterfall,
             "model": cfg.llm_model,
-            "provider": cfg.provider
+            "provider": cfg.provider,
+            "corpus_tier": tier,
+            "total_chunks_searched": total_chunks
         }
+
+    async def execute_rag_stream(self, query: str, chat_history: Optional[list[dict[str, Any]]] = None) -> AsyncGenerator[str, None]:
+        """Streams completion tokens word-by-word via Server-Sent Events (SSE)."""
+        cfg = self.config_mgr.get_config()
+        final_contexts, formatted_context, telemetry, tier, total_chunks = await self._prepare_rag_context(query, chat_history)
+
+        system_instruction = (
+            "You are an expert AI Assistant answering user questions strictly using the provided Context Documents.\n"
+            "Rules:\n"
+            "1. Base your answer ONLY on the information contained in the Context Documents.\n"
+            "2. If the answer cannot be determined from the Context Documents, state clearly: 'I cannot find relevant information in the uploaded documents to answer this question.'\n"
+            "3. Always cite sources inline using [Document X] format when stating facts.\n"
+            "4. Be concise, direct, and structured."
+        )
+
+        history_prompt = ""
+        if chat_history and len(chat_history) > 0:
+            history_lines = [f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '')}" for m in chat_history[-6:]]
+            history_prompt = "Recent Conversation History:\n" + "\n".join(history_lines) + "\n\n"
+
+        prompt = f"{history_prompt}Context Documents:\n{formatted_context}\n\nUser Question: {query}\n\nAnswer:"
+
+        header_payload = {
+            "type": "header",
+            "contexts": final_contexts,
+            "model": cfg.llm_model,
+            "provider": cfg.provider,
+            "telemetry": telemetry.get_waterfall()
+        }
+        yield f"data: {json.dumps(header_payload)}\n\n"
+
+        async for token in self.model_router.stream_completion(prompt=prompt, system_prompt=system_instruction, temperature=0.2):
+            token_payload = {"type": "token", "content": token}
+            yield f"data: {json.dumps(token_payload)}\n\n"
+
+        yield "data: [DONE]\n\n"

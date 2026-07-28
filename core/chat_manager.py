@@ -2,7 +2,7 @@ import os
 import json
 import time
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +13,9 @@ class ChatManager:
     def __init__(self):
         self.file_path = os.path.abspath(CHAT_FILE_PATH)
         os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-        self.chats: Dict[str, Dict[str, Any]] = self._load_chats()
+        self.chats: dict[str, dict[str, Any]] = self._load_chats()
 
-
-    def _load_chats(self) -> Dict[str, Dict[str, Any]]:
+    def _load_chats(self) -> dict[str, dict[str, Any]]:
         if os.path.exists(self.file_path):
             try:
                 with open(self.file_path, "r", encoding="utf-8") as f:
@@ -32,25 +31,28 @@ class ChatManager:
         except Exception as e:
             logger.error(f"Failed to save chat sessions ({self.file_path}): {e}")
 
-    def list_chats(self) -> List[Dict[str, Any]]:
-        summaries = [
-            {
-                "id": cid,
-                "title": data.get("title", "New Chat"),
-                "created_at": data.get("created_at", 0),
-                "updated_at": data["messages"][-1].get("timestamp", data.get("created_at")) if data.get("messages") else data.get("created_at"),
-                "message_count": len(data.get("messages", []))
-            }
-            for cid, data in self.chats.items()
-        ]
-        return sorted(summaries, key=lambda x: x["updated_at"], reverse=True)
+    def list_chats(self) -> list[dict[str, Any]]:
+        return sorted(
+            (
+                {
+                    "id": cid,
+                    "title": data.get("title", "New Chat"),
+                    "created_at": data.get("created_at", 0),
+                    "updated_at": data["messages"][-1].get("timestamp", data.get("created_at"))
+                                  if data.get("messages") else data.get("created_at"),
+                    "message_count": len(data.get("messages", []))
+                }
+                for cid, data in self.chats.items()
+            ),
+            key=lambda x: x["updated_at"],
+            reverse=True,
+        )
 
-    def create_chat(self, title: Optional[str] = None) -> Dict[str, Any]:
+    def create_chat(self, title: Optional[str] = None) -> dict[str, Any]:
         chat_id = f"chat_{int(time.time() * 1000)}"
         if not title:
-            count = len(self.chats) + 1
-            title = f"Chat Session #{count}"
-        
+            title = f"Chat Session #{len(self.chats) + 1}"
+
         chat_data = {
             "id": chat_id,
             "title": title,
@@ -61,7 +63,7 @@ class ChatManager:
         self._save_chats()
         return chat_data
 
-    def get_chat(self, chat_id: str) -> Optional[Dict[str, Any]]:
+    def get_chat(self, chat_id: str) -> Optional[dict[str, Any]]:
         return self.chats.get(chat_id)
 
     def delete_chat(self, chat_id: str) -> bool:
@@ -71,23 +73,19 @@ class ChatManager:
             return True
         return False
 
-    def add_message(self, chat_id: str, message: Dict[str, Any]) -> Dict[str, Any]:
+    def add_message(self, chat_id: str, message: dict[str, Any]) -> dict[str, Any]:
         if chat_id not in self.chats:
             self.create_chat()
 
         chat = self.chats[chat_id]
-        if "messages" not in chat:
-            chat["messages"] = []
-
         message["timestamp"] = time.time()
         chat["messages"].append(message)
 
-        # Auto-update title from first user query if generic title
+        # Auto-update title from first user query
         if len(chat["messages"]) == 1 and message.get("role") == "user":
             user_text = message.get("content", "").strip()
             if user_text:
-                short_title = user_text[:35] + ("..." if len(user_text) > 35 else "")
-                chat["title"] = short_title
+                chat["title"] = user_text[:35] + ("..." if len(user_text) > 35 else "")
 
         self._save_chats()
         return chat

@@ -1,10 +1,10 @@
-import chromadb
-from chromadb.config import Settings
-from typing import List, Dict, Any, Optional
 import os
 import logging
+from typing import Any, Optional
+import chromadb
 
 logger = logging.getLogger(__name__)
+
 
 class VectorIndexer:
     """Manages ChromaDB persistent vector database indexing and retrieval."""
@@ -38,8 +38,7 @@ class VectorIndexer:
             self.recreate_collection()
         else:
             try:
-                cnt = self.collection.count()
-                if cnt > 0:
+                if self.collection.count() > 0:
                     all_ids = self.collection.get(include=[])["ids"]
                     if all_ids:
                         self.collection.delete(ids=all_ids)
@@ -47,10 +46,10 @@ class VectorIndexer:
                 logger.warning(f"Error during collection delete(ids): {e}. Re-creating collection handle.")
                 self.recreate_collection()
 
-    def add_chunks(self, chunks: List[Dict[str, Any]], embeddings: Optional[List[List[float]]] = None):
+    def add_chunks(self, chunks: list[dict[str, Any]], embeddings: Optional[list[list[float]]] = None):
         if not chunks:
             return
-        
+
         if logger.isEnabledFor(logging.DEBUG):
             emb_info = f"with {len(embeddings)} pre-computed embeddings" if embeddings else "using default ChromaDB embeddings"
             logger.debug(f"[ChromaDB] Indexing {len(chunks)} chunk(s) {emb_info} into collection '{self.collection_name}'...")
@@ -69,32 +68,18 @@ class VectorIndexer:
             for c in chunks
         ]
 
+        kwargs = {"embeddings": embeddings} if (embeddings and len(embeddings) == len(chunks)) else {}
         try:
-            if embeddings and len(embeddings) == len(chunks):
-                self.collection.add(
-                    ids=ids,
-                    documents=documents,
-                    metadatas=metadatas,
-                    embeddings=embeddings
-                )
-            else:
-                self.collection.add(
-                    ids=ids,
-                    documents=documents,
-                    metadatas=metadatas
-                )
+            self.collection.add(ids=ids, documents=documents, metadatas=metadatas, **kwargs)
         except Exception as e:
             if "dimension" in str(e).lower():
                 logger.warning(f"Embedding dimension mismatch during add_chunks ({e}). Recreating collection with new dimension and retrying...")
                 self.recreate_collection()
-                if embeddings and len(embeddings) == len(chunks):
-                    self.collection.add(ids=ids, documents=documents, metadatas=metadatas, embeddings=embeddings)
-                else:
-                    self.collection.add(ids=ids, documents=documents, metadatas=metadatas)
+                self.collection.add(ids=ids, documents=documents, metadatas=metadatas, **kwargs)
             else:
                 raise e
 
-    def search_vector(self, query_text: str, top_k: int = 20, query_embedding: Optional[List[float]] = None) -> List[Dict[str, Any]]:
+    def search_vector(self, query_text: str, top_k: int = 20, query_embedding: Optional[list[float]] = None) -> list[dict[str, Any]]:
         if self.count() == 0:
             return []
 
@@ -103,31 +88,31 @@ class VectorIndexer:
             logger.debug(f"[ChromaDB Vector Search] Query: '{query_text}' | TopK: {top_k} | Search mode: {emb_status}")
 
         results = None
-        if query_embedding:
-            try:
+        try:
+            if query_embedding:
                 results = self.collection.query(
                     query_embeddings=[query_embedding],
                     n_results=min(top_k, self.count()),
                     include=["documents", "metadatas", "distances"]
                 )
-            except Exception as e:
-                err_str = str(e)
-                if "dimension" in err_str.lower():
-                    logger.warning(
-                        f"Vector search dimension mismatch ({err_str}). "
-                        "Corpus was indexed with a different embedding dimension. "
-                        "Please click 'Clear Vector & BM25 Corpus Index' in Settings and re-upload your documents to re-index. "
-                        "Falling back to BM25 sparse search for this query."
-                    )
-                    return []
-                else:
-                    raise e
-        else:
-            results = self.collection.query(
-                query_texts=[query_text],
-                n_results=min(top_k, self.count()),
-                include=["documents", "metadatas", "distances"]
-            )
+            else:
+                results = self.collection.query(
+                    query_texts=[query_text],
+                    n_results=min(top_k, self.count()),
+                    include=["documents", "metadatas", "distances"]
+                )
+        except Exception as e:
+            err_str = str(e)
+            if "dimension" in err_str.lower():
+                logger.warning(
+                    f"Vector search dimension mismatch ({err_str}). "
+                    "Corpus was indexed with a different embedding dimension. "
+                    "Please click 'Clear Vector & BM25 Corpus Index' in Settings and re-upload your documents to re-index. "
+                    "Falling back to BM25 sparse search for this query."
+                )
+                return []
+            else:
+                raise e
 
         output = []
         if results and results.get("ids"):
@@ -138,19 +123,18 @@ class VectorIndexer:
 
             for i in range(len(ids)):
                 similarity = 1.0 - max(0.0, float(dists[i]))
-                output.append({
-                    "chunk_id": ids[i],
-                    "content": docs[i],
-                    "metadata": metas[i],
-                    "score": round(similarity, 4)
-                })
+                if similarity >= 0.15:
+                    output.append({
+                        "chunk_id": ids[i],
+                        "content": docs[i],
+                        "metadata": metas[i],
+                        "score": round(similarity, 4)
+                    })
 
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"[ChromaDB Vector Search] Returned {len(output)} vector hit(s). Top score: {output[0]['score'] if output else 'N/A'}")
 
-        # Exclude parent marker docs — they are stored for ID lookup only, not search results
-        output = [r for r in output if r["metadata"].get("chunk_type", "child") != "parent"]
-        return output
+        return [r for r in output if r["metadata"].get("chunk_type", "child") != "parent"]
 
     def delete_by_source(self, source_name: str):
         """Deletes all chunks associated with a specific file source."""
@@ -160,24 +144,22 @@ class VectorIndexer:
             except Exception:
                 pass
 
-    def get_all_chunks(self) -> List[Dict[str, Any]]:
+    def get_all_chunks(self) -> list[dict[str, Any]]:
         count = self.count()
         if count == 0:
             return []
         results = self.collection.get(include=["documents", "metadatas"], limit=count)
-        output = []
-        for i in range(len(results["ids"])):
-            # Exclude parent marker docs from BM25 re-indexing and Nano-tier full-corpus fetch
-            if results["metadatas"][i].get("chunk_type", "child") == "parent":
-                continue
-            output.append({
+        return [
+            {
                 "chunk_id": results["ids"][i],
                 "content": results["documents"][i],
                 "metadata": results["metadatas"][i]
-            })
-        return output
+            }
+            for i in range(len(results["ids"]))
+            if results["metadatas"][i].get("chunk_type", "child") != "parent"
+        ]
 
-    def get_by_ids(self, ids: List[str]) -> Dict[str, str]:
+    def get_by_ids(self, ids: list[str]) -> dict[str, str]:
         """Fetch chunk contents by ID — used for small-to-big parent content resolution."""
         if not ids:
             return {}

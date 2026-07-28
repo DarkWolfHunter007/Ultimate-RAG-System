@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 _rerank_model = None
 
 
-def rerank(query: str, candidates: List[Dict[str, Any]], top_n: int = 5) -> List[Dict[str, Any]]:
+def rerank(query: str, candidates: list[dict[str, Any]], top_n: int = 5) -> list[dict[str, Any]]:
     """Neural cross-encoder reranker. Falls back to truncation if model unavailable."""
     global _rerank_model
     if not candidates:
@@ -33,5 +33,3 @@ def rerank(query: str, candidates: List[Dict[str, Any]], top_n: int = 5) -> List
             logger.warning(f"Reranking execution error: {e}")
 
     return candidates[:top_n]
-
-

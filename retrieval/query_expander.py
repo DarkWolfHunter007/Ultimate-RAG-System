@@ -1,13 +1,13 @@
 import logging
-from typing import List, Optional
+from typing import Optional
 from core.router import ModelRouter
 
 logger = logging.getLogger(__name__)
 
-async def expand_query(query: str, router: Optional[ModelRouter] = None) -> List[str]:
+
+async def expand_query(query: str, router: Optional[ModelRouter] = None) -> list[str]:
     """Generates alternative rephrasings of a user query for RAG-Fusion."""
-    if router is None:
-        router = ModelRouter()
+    router = router or ModelRouter()
 
     prompt = (
         f"You are an AI search optimizer. Generate 3 alternative versions or rephrasings of the following query "
@@ -27,5 +27,3 @@ async def expand_query(query: str, router: Optional[ModelRouter] = None) -> List
     except Exception as e:
         logger.warning(f"Query expansion fallback: {e}")
         return [query]
-
-
