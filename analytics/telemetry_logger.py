@@ -1,5 +1,11 @@
+import os
 import time
 from typing import Any
+
+# Disable Opik cloud background logging if no API key or custom URL is configured
+# (prevents console 'OPIK: Unauthorized 401' log spam)
+if not os.getenv("OPIK_API_KEY") and not os.getenv("OPIK_URL_OVERRIDE"):
+    os.environ["OPIK_TRACKING_ACTIVE"] = "false"
 
 try:
     from opik import track, Opik
