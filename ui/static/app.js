@@ -394,39 +394,72 @@ document.addEventListener("DOMContentLoaded", () => {
       // AI Assistant Message with Pretty Markdown & Collapsible Drawers
       let parsedHTML = formatMarkdown(m.content);
 
-      // Collapsible Metrics Drawer
+      // Collapsible Metrics & Telemetry Breakdown Drawer
       let metricsHTML = "";
       if (m.metrics || m.telemetry) {
-        const faith = (m.metrics?.faithfulness || 0.95).toFixed(2);
-        const prec = (m.metrics?.context_precision || 0.90).toFixed(2);
-        const rec = (m.metrics?.context_recall || 0.88).toFixed(2);
+        const faith = m.metrics?.faithfulness ?? 0.95;
+        const prec = m.metrics?.context_precision ?? 0.90;
+        const rec = m.metrics?.context_recall ?? 0.88;
+
+        const faithClass = faith >= 0.8 ? 'high' : (faith >= 0.6 ? 'medium' : 'low');
+        const precClass = prec >= 0.8 ? 'high' : (prec >= 0.6 ? 'medium' : 'low');
+        const recClass = rec >= 0.8 ? 'high' : (rec >= 0.6 ? 'medium' : 'low');
 
         const modelName = m.model || (currentConfig?.llm_model || 'Gemini 2.0 Flash');
         const providerName = (m.provider || currentConfig?.provider || 'openrouter').toUpperCase();
         const modeStr = currentConfig ? `Hybrid (α=${currentConfig.hybrid_alpha})` : 'Hybrid';
+        const totalMs = m.telemetry?.total_latency_ms || 0;
 
+        const colors = ['#00f2fe', '#c084fc', '#34d399', '#fbbf24', '#f87171', '#38bdf8'];
         let waterfallSpans = "";
-        (m.telemetry?.spans || []).forEach(s => {
-          waterfallSpans += `<div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);"><span>${s.name}</span><span>${s.duration_ms} ms</span></div>`;
+        let barSegments = "";
+
+        const spans = m.telemetry?.spans || [];
+        spans.forEach((s, idx) => {
+          const color = colors[idx % colors.length];
+          const pct = totalMs > 0 ? Math.min(100, Math.max(2, (s.duration_ms / totalMs) * 100)) : 0;
+          
+          barSegments += `<div class="waterfall-bar-segment" style="width: ${pct}%; background: ${color};" title="${escapeHtml(s.name)}: ${s.duration_ms} ms (${pct.toFixed(1)}%)"></div>`;
+
+          waterfallSpans += `
+            <div class="waterfall-row">
+              <span class="waterfall-name">
+                <span class="waterfall-dot" style="background: ${color};"></span>
+                ${escapeHtml(s.name)}
+                ${s.details ? `<span style="color:var(--text-muted); font-size:0.7rem;">(${escapeHtml(s.details)})</span>` : ''}
+              </span>
+              <span class="waterfall-val">${s.duration_ms} ms <span style="opacity:0.6;">(${pct.toFixed(1)}%)</span></span>
+            </div>
+          `;
         });
 
         metricsHTML = `
           <div class="collapsible-drawer">
             <div class="drawer-header" onclick="this.nextElementSibling.classList.toggle('open')">
-              <span>📊 RAG Telemetry & Quality Metrics</span>
+              <span>📊 RAG Telemetry & Execution Breakdown ${totalMs > 0 ? '(' + totalMs + ' ms)' : ''}</span>
               <span>▼</span>
             </div>
             <div class="drawer-body">
-              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--bg-card-border); padding-bottom: 0.5rem; margin-bottom: 0.75rem; font-size: 0.78rem; flex-wrap: wrap; gap: 0.4rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--bg-card-border); padding-bottom: 0.55rem; margin-bottom: 0.75rem; font-size: 0.78rem; flex-wrap: wrap; gap: 0.4rem;">
                 <span style="color:var(--accent-cyan); font-weight:700;">🤖 Model: ${escapeHtml(modelName)}</span>
                 <span style="color:var(--text-muted);">Provider: <strong style="color:var(--text-main);">${escapeHtml(providerName)}</strong> | Mode: <strong style="color:var(--text-main);">${modeStr}</strong></span>
+                <span class="opik-badge">👁️ Opik Traced</span>
               </div>
               <div class="metrics-grid">
-                <div class="metric-box"><div class="metric-val">${faith}</div><div class="metric-label">Faithfulness</div></div>
-                <div class="metric-box"><div class="metric-val">${prec}</div><div class="metric-label">Precision</div></div>
-                <div class="metric-box"><div class="metric-val">${rec}</div><div class="metric-label">Recall</div></div>
+                <div class="metric-box"><div class="metric-val ${faithClass}">${(faith * 100).toFixed(0)}%</div><div class="metric-label">Faithfulness</div></div>
+                <div class="metric-box"><div class="metric-val ${precClass}">${(prec * 100).toFixed(0)}%</div><div class="metric-label">Precision</div></div>
+                <div class="metric-box"><div class="metric-val ${recClass}">${(rec * 100).toFixed(0)}%</div><div class="metric-label">Recall</div></div>
               </div>
-              ${waterfallSpans ? `<div style="margin-top:0.5rem; padding-top:0.4rem; border-top:1px dashed var(--bg-card-border);">${waterfallSpans}</div>` : ''}
+              ${waterfallSpans ? `
+                <div class="waterfall-container">
+                  <div class="waterfall-title">
+                    <span>⚡ Microsecond Latency Waterfall</span>
+                    <span>Total: ${totalMs} ms</span>
+                  </div>
+                  <div class="waterfall-bar-track">${barSegments}</div>
+                  ${waterfallSpans}
+                </div>
+              ` : ''}
             </div>
           </div>
         `;

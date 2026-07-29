@@ -624,6 +624,124 @@ body {
   border-color: rgba(127, 0, 255, 0.3);
 }
 
+/* Metrics & Execution Breakdown Grid */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+
+.metric-box {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.metric-box:hover {
+  border-color: rgba(0, 242, 254, 0.3);
+  background: rgba(0, 242, 254, 0.04);
+}
+
+.metric-val {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--accent-cyan);
+}
+
+.metric-val.high { color: #34d399; }
+.metric-val.medium { color: #fbbf24; }
+.metric-val.low { color: #f87171; }
+
+.metric-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 0.15rem;
+}
+
+/* Waterfall Latency Breakdown */
+.waterfall-container {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--bg-card-border);
+}
+
+.waterfall-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+
+.waterfall-bar-track {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  display: flex;
+  overflow: hidden;
+  margin-bottom: 0.6rem;
+}
+
+.waterfall-bar-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.waterfall-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.waterfall-row:last-child {
+  border-bottom: none;
+}
+
+.waterfall-name {
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.waterfall-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.waterfall-val {
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 0.73rem;
+}
+
+.opik-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 /* Collapsible Drawers */
 .collapsible-drawer {
   margin-top: 0.75rem;
