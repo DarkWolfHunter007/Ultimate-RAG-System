@@ -1,6 +1,8 @@
 from typing import Any
+from analytics.telemetry_logger import track
 
 
+@track(name="evaluate_metrics")
 def evaluate_metrics(query: str, response: str, contexts: list[dict[str, Any]]) -> dict[str, float]:
     """Calculates quantitative RAG evaluation metrics (Faithfulness, Precision, Recall)."""
     if not contexts or not response:

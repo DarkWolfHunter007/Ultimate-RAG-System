@@ -1,6 +1,15 @@
 import time
 from typing import Any
 
+try:
+    from opik import track, Opik
+except ImportError:
+    def track(*args, **kwargs):
+        if len(args) == 1 and callable(args[0]):
+            return args[0]
+        return lambda fn: fn
+    Opik = None
+
 
 class TelemetryLogger:
     """Tracks latency breakdown microsecond waterfall and query execution metrics."""

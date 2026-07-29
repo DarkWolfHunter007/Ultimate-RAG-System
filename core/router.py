@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Any, Optional, AsyncGenerator
 from core.config_manager import ConfigManager
+from analytics.telemetry_logger import track
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ class ModelRouter:
     def __init__(self):
         self.config_mgr = ConfigManager()
 
+    @track(name="llm_generate_completion")
     async def generate_completion(
         self,
         prompt: str,

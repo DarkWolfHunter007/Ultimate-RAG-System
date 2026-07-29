@@ -1,4 +1,5 @@
 import time
+import json
 import asyncio
 import logging
 from typing import Any, Optional, AsyncGenerator
@@ -10,7 +11,7 @@ from retrieval.hybrid_fusion import fuse_rrf, apply_mmr
 from retrieval.reranker import rerank
 from retrieval.hyde import generate_hypothetical_document
 from retrieval.query_expander import expand_query
-from analytics.telemetry_logger import TelemetryLogger
+from analytics.telemetry_logger import TelemetryLogger, track
 from analytics.metrics_evaluator import evaluate_metrics
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ class AdaptiveEngine:
             logger.warning(f"Failed to generate query embedding for '{q[:30]}...': {e}")
             return None
 
+    @track(name="prepare_rag_context")
     async def _prepare_rag_context(self, query: str, chat_history: Optional[list[dict[str, Any]]] = None) -> tuple[list[dict[str, Any]], str, TelemetryLogger, str, int]:
         telemetry = TelemetryLogger()
         cfg = self.config_mgr.get_config()
@@ -98,21 +100,22 @@ class AdaptiveEngine:
             final_contexts = apply_mmr(fused_candidates, top_n=cfg.top_n_final, mmr_lambda=cfg.mmr_lambda)
 
         parent_ids = list({c["metadata"].get("parent_id") for c in final_contexts if c.get("metadata", {}).get("parent_id")})
-        parent_map: dict[str, str] = self.vector_indexer.get_by_ids(parent_ids) if parent_ids else {}
+        parent_map = self.vector_indexer.get_by_ids(parent_ids) if parent_ids else {}
 
         context_blocks = []
-        for i, c in enumerate(final_contexts, 1):
+        for i, c in enumerate(final_contexts, start=1):
             pid = c.get("metadata", {}).get("parent_id")
             resolved_content = parent_map.get(pid, c["content"]) if pid else c["content"]
-            meta = c.get("metadata", {})
-            src = meta.get("source", "doc")
-            pg = meta.get("page", 1)
+            src = c.get("metadata", {}).get("source", "Unknown")
+            pg = c.get("metadata", {}).get("page", 1)
             context_blocks.append(f"[Document {i} | Source: {src} (Page {pg})]\n{resolved_content}")
 
         formatted_context = "\n\n---\n\n".join(context_blocks)
         return final_contexts, formatted_context, telemetry, tier, total_chunks
 
+    @track(name="execute_rag_pipeline")
     async def execute_rag_pipeline(self, query: str, chat_history: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
+
         cfg = self.config_mgr.get_config()
         final_contexts, formatted_context, telemetry, tier, total_chunks = await self._prepare_rag_context(query, chat_history)
 
@@ -179,6 +182,7 @@ class AdaptiveEngine:
             "total_chunks_searched": total_chunks
         }
 
+    @track(name="execute_rag_stream")
     async def execute_rag_stream(self, query: str, chat_history: Optional[list[dict[str, Any]]] = None) -> AsyncGenerator[str, None]:
         """Streams completion tokens word-by-word via Server-Sent Events (SSE)."""
         cfg = self.config_mgr.get_config()

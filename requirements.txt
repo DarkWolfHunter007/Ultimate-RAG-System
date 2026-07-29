@@ -6,3 +6,4 @@ chromadb>=0.4.0
 rank-bm25>=0.2.2
 pymupdf>=1.22.0
 python-multipart>=0.0.6
+opik>=1.0.0
